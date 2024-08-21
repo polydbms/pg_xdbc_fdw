@@ -1,0 +1,33 @@
+# Define variables
+DOCKER_DIR := docker
+COMPOSE_FILE := docker-xdbc-fdw.yml
+START_SCRIPT := start_script.sh
+TEST_SCRIPT := test_script.sh
+
+# Default target
+.PHONY: all
+all: docker_build docker_compose_up run_script
+
+# Enter the docker directory and run make
+.PHONY: docker_build
+docker_build:
+	$(MAKE) -C $(DOCKER_DIR)
+
+# Start the Docker Compose services
+.PHONY: docker_compose_up
+docker_compose_up:
+	docker compose -f $(COMPOSE_FILE) up -d
+
+# Run the start script
+.PHONY: run_script
+run_script:
+	bash $(START_SCRIPT)
+
+# Test target
+.PHONY: test
+test: docker_build docker_compose_up run_test_script
+
+# Run the test script
+.PHONY: run_test_script
+run_test_script:
+	bash $(TEST_SCRIPT)

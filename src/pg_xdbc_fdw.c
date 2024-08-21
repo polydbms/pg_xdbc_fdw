@@ -1,5 +1,5 @@
 
-#include "pg_sheet_fdw.h"
+#include "pg_xdbc_fdw.h"
 
 // Postgresql Magic block!
 #ifdef PG_MODULE_MAGIC
@@ -7,8 +7,8 @@ PG_MODULE_MAGIC;
 #endif
 
 // Postgresql visible functions
-PG_FUNCTION_INFO_V1(pg_sheet_fdw_handler);
-PG_FUNCTION_INFO_V1(pg_sheet_fdw_validator);
+PG_FUNCTION_INFO_V1(pg_xdbc_fdw_handler);
+PG_FUNCTION_INFO_V1(pg_xdbc_fdw_validator);
 
 // Gets called as soon as the library is loaded into memory once.
 // Here you can load global stuff needed for the FDW to work.
@@ -22,20 +22,105 @@ void _PG_fini(void){
 }
 
 // The handler function just returns function pointers to all FDW functions
-Datum pg_sheet_fdw_handler(PG_FUNCTION_ARGS){
+Datum pg_xdbc_fdw_handler(PG_FUNCTION_ARGS){
     elog_debug("[%s]",__func__);
 
     FdwRoutine *fdwroutine = makeNode(FdwRoutine);
 
-    fdwroutine->GetForeignRelSize = pg_sheet_fdwGetForeignRelSize;
-    fdwroutine->GetForeignPaths = pg_sheet_fdwGetForeignPaths;
-    fdwroutine->GetForeignPlan = pg_sheet_fdwGetForeignPlan;
-    fdwroutine->BeginForeignScan = pg_sheet_fdwBeginForeignScan;
-    fdwroutine->IterateForeignScan = pg_sheet_fdwIterateForeignScan;
-    fdwroutine->ReScanForeignScan = pg_sheet_fdwReScanForeignScan;
-    fdwroutine->EndForeignScan = pg_sheet_fdwEndForeignScan;
+    // base routines
+    fdwroutine->GetForeignRelSize = pg_xdbc_fdwGetForeignRelSize;
+    fdwroutine->GetForeignPaths = pg_xdbc_fdwGetForeignPaths;
+    fdwroutine->GetForeignPlan = pg_xdbc_fdwGetForeignPlan;
+    fdwroutine->BeginForeignScan = pg_xdbc_fdwBeginForeignScan;
+    fdwroutine->IterateForeignScan = pg_xdbc_fdwIterateForeignScan;
+    fdwroutine->ReScanForeignScan = pg_xdbc_fdwReScanForeignScan;
+    fdwroutine->EndForeignScan = pg_xdbc_fdwEndForeignScan;
+
+    // parallel routines
+    fdwroutine->IsForeignScanParallelSafe = pg_xdbc_fdwIsForeignScanParallelSafe;
+    fdwroutine->EstimateDSMForeignScan = pg_xdbc_fdwEstimateDSMForeignScan;
+    fdwroutine->InitializeDSMForeignScan = pg_xdbc_fdwInitializeDSMForeignScan;
+    fdwroutine->ReInitializeDSMForeignScan = pg_xdbc_fdwReInitializeDSMForeignScan;
+    fdwroutine->InitializeWorkerForeignScan = pg_xdbc_fdwInitializeWorkerForeignScan;
+    fdwroutine->ShutdownForeignScan = pg_xdbc_fdwShutdownForeignScan;
 
     PG_RETURN_POINTER(fdwroutine);
+}
+
+/*
+ * Test whether a scan can be performed within a parallel worker.
+ * This function will only be called when the planner believes that a parallel plan might be possible,
+ * and should return true if it is safe for that scan to run within a parallel worker.
+ * This will generally not be the case if the remote data source has transaction semantics,
+ * unless the worker's connection to the data can somehow be made to share the same transaction context as the leader.
+ * If this function is not defined, it is assumed that the scan must take place within the parallel leader.
+ * Note that returning true does not mean that the scan itself can be done in parallel,
+ * only that the scan can be performed within a parallel worker. Therefore,
+ * it can be useful to define this method even when parallel execution is not supported.
+ */
+bool
+pg_xdbc_fdwIsForeignScanParallelSafe(PlannerInfo *root, RelOptInfo *rel,
+                          RangeTblEntry *rte){
+    elog_debug("%s",__func__);
+    return false;
+}
+
+/*
+ * Estimate the amount of dynamic shared memory that will be required for parallel operation.
+ * This may be higher than the amount that will actually be used, but it must not be lower.
+ * The return value is in bytes. This function is optional, and can be omitted if not needed;
+ * but if it is omitted, the next three functions must be omitted as well,
+ * because no shared memory will be allocated for the FDW's use.
+ */
+Size
+pg_xdbc_fdwEstimateDSMForeignScan(ForeignScanState *node, ParallelContext *pcxt){
+    elog_debug("%s",__func__);
+    return 0;
+}
+
+/*
+ * Initialize the dynamic shared memory that will be required for parallel operation.
+ * coordinate points to a shared memory area of size equal to the return value of EstimateDSMForeignScan.
+ * This function is optional, and can be omitted if not needed.
+ */
+void
+pg_xdbc_fdwInitializeDSMForeignScan(ForeignScanState *node, ParallelContext *pcxt,
+                         void *coordinate){
+    elog_debug("%s",__func__);
+}
+
+/*
+ * Re-initialize the dynamic shared memory required for parallel operation when the
+ * foreign-scan plan node is about to be re-scanned. This function is optional, and
+ * can be omitted if not needed. Recommended practice is that this function reset only shared state,
+ * while the ReScanForeignScan function resets only local state. Currently,
+ * this function will be called before ReScanForeignScan, but it's best not to rely on that ordering.
+ */
+void
+pg_xdbc_fdwReInitializeDSMForeignScan(ForeignScanState *node, ParallelContext *pcxt,
+                           void *coordinate){
+    elog_debug("%s",__func__);
+}
+
+/*
+ * Initialize a parallel worker's local state based on the shared state set up by the
+ * leader during InitializeDSMForeignScan. This function is optional, and can be omitted if not needed.
+ */
+void
+pg_xdbc_fdwInitializeWorkerForeignScan(ForeignScanState *node, shm_toc *toc,
+                            void *coordinate){
+    elog_debug("%s",__func__);
+}
+/*
+ * Release resources when it is anticipated the node will not be executed to completion.
+ * This is not called in all cases; sometimes, EndForeignScan may be called without this
+ * function having been called first. Since the DSM segment used by parallel query is destroyed
+ * just after this callback is invoked, foreign data wrappers that wish to take some action
+ * before the DSM segment goes away should implement this method.
+ */
+void
+pg_xdbc_fdwShutdownForeignScan(ForeignScanState *node){
+    elog_debug("%s",__func__);
 }
 
 /*
@@ -47,32 +132,21 @@ Datum pg_sheet_fdw_handler(PG_FUNCTION_ARGS){
  * Also, this function may update baserel->tuples if it can compute a better estimate of the foreign table's total row count.
  * (The initial value is from pg_class.reltuples which represents the total row count seen by the last ANALYZE.)
  */
-void pg_sheet_fdwGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid){
-    char *filepath;
-    char *sheetname;
-    unsigned long batchSize = 0;
-    int numberOfThreads = -1;
-    int skipRows = 0;
-    pg_sheet_fdwGetOptions(foreigntableid, &filepath, &sheetname, &batchSize, &numberOfThreads, &skipRows);
-    unsigned long rowCount = registerExcelFileAndSheetAsTable(filepath, sheetname, foreigntableid, numberOfThreads);
-    elog_debug("[%s] Got row count: %lu", __func__, rowCount);
-    baserel->rows = (double) rowCount;
+void pg_xdbc_fdwGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid){
+    EnvironmentOptions* envOpt = palloc(sizeof(EnvironmentOptions));
+    EnvironmentOptions tempOpt = createEnvOpt();
+    memcpy(envOpt, &(tempOpt), sizeof(EnvironmentOptions ));
+    pg_xdbc_fdwGetOptions(foreigntableid, &envOpt->table, &envOpt->server_host,
+                          &envOpt->schema_file_with_path, &envOpt->mode,
+                          &envOpt->buffer_size, &envOpt->bufferpool_size,
+                          &envOpt->sleep_time, &envOpt->net_parallelism, &envOpt->read_parallelism,
+                          &envOpt->decomp_parallelism, &envOpt->tuple_size);
 
-    // set baseline batchsize to have 101 batches, if batchsize not set and at least a size of 1000.
-    if(!batchSize){
-        batchSize = rowCount/100;
-        if(batchSize < 1000) batchSize = 1000;
-        elog_debug("[%s] BatchSize not set, using base batchSize of: %lu", __func__, batchSize);
-    }
+    baserel->rows = (double) 1000;
 
-    // store rowcount for later usage
+    // store options for later?
     List *fdw_private;
-    Datum rowCountDate = UInt64GetDatum(rowCount);
-    Datum batchSizeDate = UInt64GetDatum(batchSize);
-    Datum skipRowsDate = Int32GetDatum(skipRows);
-    fdw_private = list_make1((void *) rowCountDate);
-    fdw_private = lappend(fdw_private, (void *) batchSizeDate);
-    fdw_private = lappend(fdw_private, (void *) skipRowsDate);
+    fdw_private = list_make1(envOpt);
     baserel->fdw_private = fdw_private;
 }
 
@@ -84,7 +158,7 @@ void pg_sheet_fdwGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid f
  * Each access path must contain cost estimates,
  * and can contain any FDW-private information that is needed to identify the specific scan method intended.
  */
-void pg_sheet_fdwGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid){
+void pg_xdbc_fdwGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid){
     elog_debug("[%s]",__func__);
 
     Cost startup_cost = 0;
@@ -104,7 +178,7 @@ void pg_sheet_fdwGetForeignPaths(PlannerInfo *root, RelOptInfo *baserel, Oid for
  * This function must create and return a ForeignScan plan node;
  * it's recommended to use make_foreignscan to build the ForeignScan node.
  */
-ForeignScan* pg_sheet_fdwGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses, Plan *outer_plan){
+ForeignScan* pg_xdbc_fdwGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid, ForeignPath *best_path, List *tlist, List *scan_clauses, Plan *outer_plan){
     elog_debug("[%s]", __func__);
 
     // Just copied!!
@@ -112,152 +186,6 @@ ForeignScan* pg_sheet_fdwGetForeignPlan(PlannerInfo *root, RelOptInfo *baserel, 
     scan_clauses = extract_actual_clauses(scan_clauses, false);
     List* fdw_private = baserel->fdw_private;
     return make_foreignscan(tlist, scan_clauses, scan_relid, NIL, fdw_private, NIL, NIL, NULL);
-}
-
-Datum pg_sheet_fdwConvertSheetNumericToPG(struct PGExcelCell* cell, Oid expectedType){
-    long data;
-    switch(expectedType){
-        case (20): // bigint
-            return Int64GetDatum((long) cell->data.real);
-        case (21): // smallint
-            data = (long) cell->data.real;
-            if(data > 32767) data = 32767;
-            else if(data < -32768) data = -32768;
-            return Int16GetDatum(data);
-        case (23): // integer
-            data = (long) cell->data.real;
-            if(data > 2147483647) data = 2147483647;
-            else if(data < -2147483648) data = -2147483648;
-            return Int32GetDatum(data);
-        case (700): // real
-            return Float4GetDatum((float4)cell->data.real);
-        case (701): // double precision
-            return Float8GetDatum((float8)cell->data.real);
-        case (1700): // numeric/decimal
-            return DirectFunctionCall1(float8_numeric, Float8GetDatum((float8)cell->data.real));
-        default:
-            ereport(ERROR,
-                    (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
-                            errmsg("[%s] unsupported data type!", __func__ )));
-            return 0;
-    }
-}
-
-// returns 0 if no new rows prefetched, 1 if at least one row prefetched
-int pg_sheet_fdwPrefetchRows(pg_sheet_scanstate* state){
-    // switch to memory context
-    MemoryContext oldContext = MemoryContextSwitchTo(state->context);
-
-    // debug print the state
-    //elog_debug("[%s] state debug id: %u, column count: %u, rows left: %lu, rows prefetched: %lu, rows read: %lu, next batchIndex: %lu", __func__, state->tableID, state->columnCount, state->rowsLeft, state->rowsRead, state->rowsPrefetched, state->batchIndex );
-    unsigned long prefetchCount = state->batchSize;
-    if(state->rowsLeft < state->batchSize) prefetchCount = state->rowsLeft;
-    //elog_debug("[%s] Pallocating %lu Bytes memory for %lu rows.", __func__, sizeof(Datum) * prefetchCount * state->columnCount, prefetchCount);
-    // allocate new memory in the scan state at the next batch pointer.
-    state->isnull[state->batchIndex] = (bool*) palloc(sizeof(bool) * prefetchCount * state->columnCount);
-    state->cells[state->batchIndex] = (Datum*) palloc(sizeof(Datum) * prefetchCount * state->columnCount);
-
-    // fetch amount of rows, check the received datatypes
-    unsigned long rowsPrefetched = 0;
-    for(; rowsPrefetched < prefetchCount; rowsPrefetched++){
-        unsigned long columnCount = startNextRow(state->tableID);
-        // no more rows to read? finish
-        if(columnCount == 0) break;
-        // columnCount valid?
-        if(columnCount != state->columnCount){
-            //elog_debug("[%s] invalid column count in sheet cell!", __func__);
-            return 0;
-        }
-        // fill tuple with cells
-        char *c;
-        unsigned long currentRow = rowsPrefetched * state->columnCount;
-        for(unsigned long i = 0; i < columnCount; i++){
-            struct PGExcelCell* cell = getNextCellCast(state->tableID);
-            Oid expectedType = state->expectedTypes[i];
-            switch(expectedType){
-                case (16):
-                    if(cell->type != T_BOOLEAN) {
-                        elog_debug("[%s] Mismatching type!", __func__);
-                        state->isnull[state->batchIndex][currentRow+i] = true;
-                        break;
-                    }
-//                    elog_debug("[%s] Cell %lu with boolean: %d", __func__, i, cell->data.boolean);
-                    state->cells[state->batchIndex][currentRow+i] = BoolGetDatum(cell->data.boolean);
-                    state->isnull[state->batchIndex][currentRow+i] = false;
-                    break;
-                case (20):
-                case (21):
-                case (23):
-                case (700):
-                case (701):
-                case (1700):
-                    if(cell->type != T_NUMERIC) {
-                        elog_debug("[%s] Mismatching type!", __func__);
-                        state->isnull[state->batchIndex][currentRow+i] = true;
-                        break;
-                    }
-//                    elog_debug("[%s] Cell %lu with number: %f", __func__, i, cell->data.real);
-                    state->cells[state->batchIndex][currentRow+i] = pg_sheet_fdwConvertSheetNumericToPG(cell, expectedType);
-                    state->isnull[state->batchIndex][currentRow+i] = false;
-                    break;
-                case (1082): // date
-                    if(cell->type != T_DATE) {
-                        elog_debug("[%s] Mismatching type!", __func__);
-                        state->isnull[state->batchIndex][currentRow+i] = true;
-                        break;
-                    }
-//                    elog_debug("[%s] Cell %lu with date", __func__, i);
-                    state->cells[state->batchIndex][currentRow+i] = DateADTGetDatum(DirectFunctionCall1(timestamp_date,(cell->data.real-946684800) * 1000000));
-                    state->isnull[state->batchIndex][currentRow+i] = false;
-                    break;
-                case (1114): // timestamp
-                    if(cell->type != T_DATE) {
-                        elog_debug("[%s] Mismatching type!", __func__);
-                        state->isnull[state->batchIndex][currentRow+i] = true;
-                        break;
-                    }
-//                    elog_debug("[%s] Cell %lu with timestamp", __func__, i);
-                    state->cells[state->batchIndex][currentRow+i] = TimeADTGetDatum((cell->data.real-946684800) * 1000000); // convert unix (seconds since 1970) to pg timestamp (microseconds since 2000)
-                    state->isnull[state->batchIndex][currentRow+i] = false;
-                    break;
-                case (18):
-                case (25):
-                case (1042):
-                case (1043):
-                    if(cell->type == T_STRING || cell->type == T_STRING_INLINE){
-                        //elog_debug("[%s] Got static string!", __func__);
-                        c = readDynamicString(state->tableID, cell->data.stringIndex);
-                    } else if(cell->type == T_STRING_REF) {
-                        //elog_debug("[%s] Got dynamic string!", __func__);
-                        c = readStaticString(state->tableID, cell->data.stringIndex);
-                    } else {
-                        elog_debug("[%s] Mismatching type!", __func__);
-                        state->isnull[state->batchIndex][currentRow+i] = true;
-                        break;
-                    }
-                    //elog_debug("[%s] Row %lu Cell %lu with string: %s with length: %lu", __func__, rowsPrefetched, i, c, strlen(c));
-                    state->cells[state->batchIndex][currentRow+i] = CStringGetTextDatum(c);
-                    state->isnull[state->batchIndex][currentRow+i] = false;
-                    //elog_debug("[%s] Freeing string that got converted to a Datum!", __func__);
-                    free(c);
-                    break;
-                default:
-                    elog_debug("[%s] Unsupported datatype in Postgresql foreign table definition!", __func__);
-            }
-        }
-    }
-    //elog_debug("[%s] Fetched %lu rows", __func__, rowsPrefetched);
-
-    // switch memory context back
-    MemoryContextSwitchTo(oldContext);
-
-    // set prefetch counter to amount and read counter to 0
-    if(rowsPrefetched == 0) return 0;
-    state->batchIndex = state->batchIndex +1;
-    state->rowsRead = 0;
-    state->rowsPrefetched = rowsPrefetched;
-    state->rowsLeft = state->rowsLeft - rowsPrefetched;
-    return 1;
 }
 
 /*
@@ -269,65 +197,18 @@ int pg_sheet_fdwPrefetchRows(pg_sheet_scanstate* state){
  * (in particular, from the underlying ForeignScan plan node, which contains any FDW-private information provided by GetForeignPlan).
  * eflags contains flag bits describing the executor's operating mode for this plan node.
  */
-void pg_sheet_fdwBeginForeignScan(ForeignScanState *node, int eflags){
+void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
 
-    // build scan state and store memory context
-    pg_sheet_scanstate *state = (pg_sheet_scanstate *) palloc(sizeof(pg_sheet_scanstate));
-
-    // set memory context for prefetch allocations
-    MemoryContext scanContext = AllocSetContextCreate(CurrentMemoryContext, "pg_sheet_allocationContext", ALLOCSET_DEFAULT_SIZES);
-    MemoryContext oldContext = MemoryContextSwitchTo(scanContext);
-
-    state->context = scanContext;
-
-    // get total row count
+    // Retrieve EnvironmentOptions
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
-    Datum rowCount = (Datum) linitial(fdw_private);
-    Datum batchSize = (Datum) list_nth(fdw_private, 1);
-    int skipRows = DatumGetInt32((Datum) list_nth(fdw_private, 2));
-    state->rowsLeft = DatumGetUInt64(rowCount);
-    state->batchSize = DatumGetUInt64(batchSize);
+    EnvironmentOptions* envOpt = linitial(fdw_private);
 
-    elog_debug("[%s] Prepare scan for %lu rows", __func__, state->rowsLeft);
+    // Initilize xclient connection to server
+    int error = xdbcInitialize(*envOpt);
 
-    // get table id (used for unique identifier in the parserinterface)
-    state->tableID = node->ss.ss_currentRelation->rd_id;
-    elog_debug("[%s] Foreign table Oid: %u",__func__, state->tableID);
+    if(error) ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("Failed to initialize XClient!" )));
 
-    for(;skipRows>0;skipRows--){
-        startNextRow(state->tableID);
-    }
-
-    // read number of columns and column types
-    TupleDesc td = RelationGetDescr(node->ss.ss_currentRelation);
-    state->columnCount = td->natts;
-    elog_debug("[%s] Detected number of columns: %d",__func__, state->columnCount);
-    state->expectedTypes = (Oid *) palloc(sizeof(Oid) * state->columnCount);
-    for(int i=0; i < state->columnCount; i++){
-        Form_pg_attribute attr = TupleDescAttr(td, i);
-        state->expectedTypes[i] = attr->atttypid;
-    }
-
-    // pallocate memory for all the batch pointers
-    unsigned long batchCount = (state->rowsLeft / state->batchSize +1);
-    elog_debug("[%s] Pallocating %lu bytes for %lu batch pointers.", __func__ , batchCount  * sizeof(Datum*), batchCount);
-    state->isnull = (bool**) palloc(batchCount  * sizeof(bool*));
-    state->cells = (Datum**) palloc(batchCount  * sizeof(Datum*));
-
-    // set counters
-    state->rowsPrefetched = 0;
-    state->rowsRead = 0;
-    state->batchIndex = 0;
-
-    // prefetch first batch
-    elog_debug("[%s] Calling Prefetch function",__func__);
-    int t = pg_sheet_fdwPrefetchRows(state);
-
-    // store scan state pointer
-    node->fdw_state = (void*) state;
-
-    // switch back the memory context
-    MemoryContextSwitchTo(oldContext);
+    // todo Have scanstate that holds current buffer for now
 }
 
 /*
@@ -338,18 +219,13 @@ void pg_sheet_fdwBeginForeignScan(ForeignScanState *node, int eflags){
  * Note that this is called in a short-lived memory context that will be reset between invocations.
  * Create a memory context in BeginForeignScan if you need longer-lived storage, or use the es_query_cxt of the node's EState.
  */
-TupleTableSlot *pg_sheet_fdwIterateForeignScan(ForeignScanState *node){
+TupleTableSlot *pg_xdbc_fdwIterateForeignScan(ForeignScanState *node){
 
-    pg_sheet_scanstate *state = node->fdw_state;
-
-    // need more rows prefetched?
-    if(state->rowsRead >= state->rowsPrefetched){
-        //elog_debug("[%s] No more rows left. Calling Prefetch function", __func__ );
-        int t = pg_sheet_fdwPrefetchRows(state);
-        if(!t){
-            return NULL;
-        }
-    }
+    /*
+     * todo retrieve scanstate with current active buffer
+     * take next tuple from it
+     * if empty fetch next buffer from xclient
+     */
 
     // build tuple from already fetched rows and increment read counter
 //    elog_debug("[%s] Storing tuple in TupleTableSlot from batch %lu at index %lu", __func__, state->batchIndex-1, state->rowsRead );
@@ -364,8 +240,6 @@ TupleTableSlot *pg_sheet_fdwIterateForeignScan(ForeignScanState *node){
 //    bool* isnull = &(state->isnull[state->batchIndex-1][state->rowsRead * state->columnCount]);
 //    HeapTuple tuple = heap_form_tuple(slot->tts_tupleDescriptor, values, isnull);
 //    ExecStoreHeapTuple(tuple, slot, 0);
-
-    state->rowsRead++;
     return slot;
 }
 
@@ -373,7 +247,7 @@ TupleTableSlot *pg_sheet_fdwIterateForeignScan(ForeignScanState *node){
  * Restart the scan from the beginning. Note that any parameters the scan depends on may have changed value,
  * so the new scan does not necessarily return exactly the same rows.
  */
-void pg_sheet_fdwReScanForeignScan(ForeignScanState *node){elog_debug("%s",__func__);}
+void pg_xdbc_fdwReScanForeignScan(ForeignScanState *node){elog_debug("%s",__func__);}
 
 /*
  * End the scan and release resources. It is normally not important to release palloc'd memory,
@@ -382,10 +256,10 @@ void pg_sheet_fdwReScanForeignScan(ForeignScanState *node){elog_debug("%s",__fun
  * we release our palloced memory from our own memory context. it is probably hierarchically under the context
  * of the whole foreign table scan and will be released with it. But we can already release it here.
  */
-void pg_sheet_fdwEndForeignScan(ForeignScanState *node){
+void pg_xdbc_fdwEndForeignScan(ForeignScanState *node){
     elog_debug("[%s] Dropping sheet in ParserInterface", __func__);
     pg_sheet_scanstate *state = node->fdw_state;
-    dropTable(state->tableID);
+    // todo clear scan state
     MemoryContextDelete(state->context);
 }
 
@@ -412,7 +286,10 @@ GetInt64Option(DefElem *def)
  * Fetches values from OPTIONS in Foreign Server and Table registration.
  */
 static void
-pg_sheet_fdwGetOptions(Oid foreigntableid, char **filepath, char **sheetname, unsigned long* batchSize, int* numberOfThreads, int* skipRows)
+pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
+                      char **schema_file_path, int* iformat, int* buffer_size, int* buffer_pool_size,
+                      int* sleep_time, int* net_parallelism, int* read_parallelism, int* decomp_parallelism,
+                      int* tuple_size)
 {
     ForeignTable	*f_table;
     ForeignServer	*f_server;
@@ -429,60 +306,123 @@ pg_sheet_fdwGetOptions(Oid foreigntableid, char **filepath, char **sheetname, un
     options = list_concat(options, f_table->options);
     options = list_concat(options, f_server->options);
 
-    bool foundSheet = false;
-    bool foundPath = false;
+    bool foundTable = false;
+    bool foundSchemaPath = false;
+    bool foundServerHost = false;
 
-    /* Loop through the options, and get the server/port */
+    /* Loop through the options, and get the values */
     foreach(lc, options)
     {
         DefElem *def = (DefElem *) lfirst(lc);
 
-        if (strcmp(def->defname, "filepath") == 0)
+        if (strcmp(def->defname, "table") == 0)
         {
-            *filepath = defGetString(def);
-            foundPath = true;
-            elog_debug("[%s] Got filepath with value: %s", __func__, *filepath);
+            *table = defGetString(def);
+            foundTable = true;
+            elog_debug("[%s] Got table with value: %s", __func__, *table);
         }
 
-        if (strcmp(def->defname, "sheetname") == 0)
+        if (strcmp(def->defname, "server_host") == 0)
         {
-            *sheetname = defGetString(def);
-            foundSheet = true;
-            elog_debug("[%s] Got sheetname with value: %s", __func__, *sheetname);
+            *server_host = defGetString(def);
+            foundServerHost = true;
+            elog_debug("[%s] Got server_host with value: %s", __func__, *server_host);
         }
 
-        if (strcmp(def->defname, "batchsize") == 0)
+        if (strcmp(def->defname, "schema_file_path") == 0)
         {
-            long custombatchsize = GetInt64Option(def);
-            if(custombatchsize > 0) *batchSize = custombatchsize;
-            elog_debug("[%s] Got batchsize with value: %lu", __func__, *batchSize);
+            *schema_file_path = defGetString(def);
+            foundSchemaPath = true;
+            elog_debug("[%s] Got schema_file_path with value: %s", __func__, *schema_file_path);
         }
 
-        if (strcmp(def->defname, "numberofthreads") == 0)
+        if (strcmp(def->defname, "iformat") == 0)
         {
-            long customnumberofthreads = GetInt64Option(def);
-            if(customnumberofthreads > 0 && customnumberofthreads <= 10) {
-                *numberOfThreads = customnumberofthreads;
-                elog_debug("[%s] Got number of threads with value: %d", __func__, *numberOfThreads);
+            *iformat = defGetInt32(def);
+            elog_debug("[%s] Got iformat with value: %d", __func__, *iformat);
+        }
+
+        if (strcmp(def->defname, "buffer_size") == 0)
+        {
+            int customBufferSize = defGetInt32(def);
+            if (customBufferSize > 0)
+            {
+                *buffer_size = customBufferSize;
+                elog_debug("[%s] Got buffer_size with value: %d", __func__, *buffer_size);
             }
         }
 
-        if (strcmp(def->defname, "skiprows") == 0){
-            long customSkipRows = GetInt64Option(def);
-            if(customSkipRows > 0 && customSkipRows <= 2147483648) {
-                *skipRows = customSkipRows;
-                elog_debug("[%s] Skipping %d rows", __func__, *skipRows);
+        if (strcmp(def->defname, "buffer_pool_size") == 0)
+        {
+            int customBufferPoolSize = defGetInt32(def);
+            if (customBufferPoolSize > 0)
+            {
+                *buffer_pool_size = customBufferPoolSize;
+                elog_debug("[%s] Got buffer_pool_size with value: %d", __func__, *buffer_pool_size);
+            }
+        }
+
+        if (strcmp(def->defname, "sleep_time") == 0)
+        {
+            int customSleepTime = defGetInt32(def);
+            if (customSleepTime > 0)
+            {
+                *sleep_time = customSleepTime;
+                elog_debug("[%s] Got sleep_time with value: %d", __func__, *sleep_time);
+            }
+        }
+
+        if (strcmp(def->defname, "net_parallelism") == 0)
+        {
+            int customNetParallelism = defGetInt32(def);
+            if (customNetParallelism > 0)
+            {
+                *net_parallelism = customNetParallelism;
+                elog_debug("[%s] Got net_parallelism with value: %d", __func__, *net_parallelism);
+            }
+        }
+
+        if (strcmp(def->defname, "read_parallelism") == 0)
+        {
+            int customReadParallelism = defGetInt32(def);
+            if (customReadParallelism > 0)
+            {
+                *read_parallelism = customReadParallelism;
+                elog_debug("[%s] Got read_parallelism with value: %d", __func__, *read_parallelism);
+            }
+        }
+
+        if (strcmp(def->defname, "decomp_parallelism") == 0)
+        {
+            int customDecompParallelism = defGetInt32(def);
+            if (customDecompParallelism > 0)
+            {
+                *decomp_parallelism = customDecompParallelism;
+                elog_debug("[%s] Got decomp_parallelism with value: %d", __func__, *decomp_parallelism);
+            }
+        }
+
+        if (strcmp(def->defname, "tuple_size") == 0)
+        {
+            int customTupleSize = defGetInt32(def);
+            if (customTupleSize > 0)
+            {
+                *tuple_size = customTupleSize;
+                elog_debug("[%s] Got tuple_size with value: %d", __func__, *tuple_size);
             }
         }
     }
 
-    if(!foundPath) ereport(ERROR,
+
+    if(!foundSchemaPath) ereport(ERROR,
                            (errcode(ERRCODE_FDW_OPTION_NAME_NOT_FOUND),
-                                   errmsg("missing mandatory option \"filepath\"" )));
-    if(!foundSheet){
-        elog_debug("[%s] Found no sheetname, using default \"\"!", __func__, *sheetname);
-        *sheetname = palloc(sizeof(char));
-        const char *empty = "";
-        strcpy(*sheetname, empty);
-    }
+                                   errmsg("missing mandatory option \"schema_file_path\"" )));
+
+    if(!foundTable) ereport(ERROR,
+                                 (errcode(ERRCODE_FDW_OPTION_NAME_NOT_FOUND),
+                                         errmsg("missing mandatory option \"table\"" )));
+
+    if(!foundServerHost) ereport(ERROR,
+                                 (errcode(ERRCODE_FDW_OPTION_NAME_NOT_FOUND),
+                                         errmsg("missing mandatory option \"server_host\"" )));
 }

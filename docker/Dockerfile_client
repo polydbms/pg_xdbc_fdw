@@ -24,6 +24,7 @@ RUN apt-get update \
         g++ \
     && rm -rf /var/lib/apt/lists/*
 
+# install postgresql server 13
 RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc| gpg --dearmor -o /etc/apt/trusted.gpg.d/postgresql.gpg
 RUN echo "deb http://apt.postgresql.org/pub/repos/apt/ `lsb_release -cs`-pgdg main" | tee  /etc/apt/sources.list.d/pgdg.list
 
@@ -31,19 +32,65 @@ RUN apt-get update &&  apt-get install -y --no-install-recommends \
                               postgresql-13 \
                               postgresql-server-dev-13
 
-# Copy files and directories from the host machine to the container
+# xdbx prerequisited
+RUN apt-get update
+RUN apt-get upgrade -qy
+RUN apt-get install -qy --no-install-recommends \
+        nlohmann-json3-dev \
+        clang \
+        libboost-all-dev \
+        build-essential \
+        libspdlog-dev \
+        iproute2 \
+        libzstd-dev \
+        liblzo2-dev \
+        liblz4-dev \
+        libsnappy-dev \
+        libbrotli-dev
+
+RUN git clone https://github.com/lemire/FastPFor.git && cd FastPFor && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    cmake --build . --config Release && \
+    make install
+
+RUN git clone https://github.com/LLNL/fpzip.git && cd fpzip && \
+    mkdir build && \
+    cd build && \
+    cmake .. && \
+    cmake --build . --config Release && \
+    make install
+
+# Copy xdbc files and directories from the host machine to the container and compile submodules
 RUN mkdir /pg_xdbc_fdw
+COPY submodules /pg_xdbc_fdw/submodules
+
+# Run installation command for xdbc
+WORKDIR /pg_xdbc_fdw/submodules/xdbc-client/
+RUN mkdir build && cd build && cmake .. && make -j8 && make install
+RUN ldconfig
+
+# Run installation command for xdbc test
+RUN mkdir tests/build && cd tests/build && cmake .. && make -j8
+WORKDIR /
+
+# Copy xdbc fdw code
 COPY pg_xdbc_fdw.control /pg_xdbc_fdw/
 COPY pg_xdbc_fdw--0.1.sql /pg_xdbc_fdw/
-COPY Makefile /pg_xdbc_fdw/
+COPY Makefile /pg_xdbc_fdw/Makefile
 COPY src /pg_xdbc_fdw/src
 COPY include /pg_xdbc_fdw/include
-COPY submodules /pg_xdbc_fdw/submodules
-COPY test /pg_xdbc_fdw/test
+RUN mkdir -p /pg_xdbc_fdw/ressources/schemas
+COPY ressources/schemas /pg_xdbc_fdw/ressources/schemas
 
-# Run installation commands
-RUN echo "Installing pg_xdbc_fdw." \
-    && cd /pg_xdbc_fdw/ && make USE_PGXS=1 install
+# Run installation command for the fdw
+#RUN echo "Installing pg_xdbc_fdw." \
+#    && cd /pg_xdbc_fdw/ && make USE_PGXS=1 install
+
+# Copy test files and compile test
+COPY test /pg_xdbc_fdw/test
+RUN cd /pg_xdbc_fdw/test/xdbc_interface_test/ && make
 
 # Set Postgres configuration
 USER postgres

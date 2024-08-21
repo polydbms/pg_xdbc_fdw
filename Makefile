@@ -2,11 +2,11 @@ EXTENSION = pg_xdbc_fdw
 MODULE_big = pg_xdbc_fdw
 DATA = pg_xdbc_fdw--0.1.sql
 
-# add needed submodules
-OBJS = src/pg_xdbc_fdw.o src/xdbc_client_interface.o src/xdbc_server_interface.o
+# add object files and needed submodules to compile
+OBJS = src/pg_xdbc_fdw.o src/xdbc_interface.o
 
 PG_LIBS = -lpq
-PG_CPPFLAGS = -I./include -I./submodules/xdbc-client -I./submodules/xdbc-server
+PG_CPPFLAGS = -I./include -I./submodules/xdbc-client/xdbc -I./submodules/xdbc-server
 PG_CFLAGS = -I./include
 
 ifdef DEBUG
