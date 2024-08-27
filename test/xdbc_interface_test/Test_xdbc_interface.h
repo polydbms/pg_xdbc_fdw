@@ -6,6 +6,8 @@
 #define PG_XDBC_FDW_TEST_XDBC_INTERFACE_H
 
 #include <stdio.h>
+#include <pthread.h>
+#include <unistd.h>
 #include "xdbc_interface.h"
 
 

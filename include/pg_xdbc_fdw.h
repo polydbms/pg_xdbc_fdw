@@ -102,27 +102,11 @@ pg_xdbc_fdwShutdownForeignScan(ForeignScanState *node);
  * Scanstate of the current scan. Used by the callback functions of this fdw.
  */
 typedef struct {
-    // Memory context for allocations
-    MemoryContext context;
-    // used as unique identifier in the parserInterface
-    unsigned int tableID;
-    int columnCount;
-    // size of one prefetch batch
-    int batchSize;
-    // how many rows not read
-    unsigned long rowsLeft;
-    // how many rows already fetched
-    unsigned long rowsPrefetched;
-    // how many rows already read
-    unsigned long rowsRead;
-    // index of the currently used batch
-    unsigned long batchIndex;
-    // Used to check against received types from the ParserInterface. Essentially the schema of the foreign table.
-    Oid* expectedTypes;
-    // memory for prefetched values
-    Datum** cells;
-    bool** isnull;
-} pg_sheet_scanstate;
+    // current xclient buffer
+    XdbcBuffer curbuff;
+    // how many tuples already read from curbuf
+
+} pg_xdbc_scanstate;
 
 //==============================================================  helper functions
 

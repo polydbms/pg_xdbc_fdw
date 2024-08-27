@@ -37,7 +37,7 @@ extern "C"
         int id;
         int iformat;
         unsigned long size;
-        const unsigned char* data;
+        unsigned char* data;
     } XdbcBuffer;
 
     /**
@@ -51,7 +51,7 @@ extern "C"
      * @param transfer_id id of the current transfer under which the buffer was aquired
      * @param bufferID id of the buffer
      */
-    void markXdbcBufferAsRead(int transfer_id, int bufferID);
+    void markXdbcBufferAsRead(long transfer_id, int bufferID);
 
     /**
      * Get the next buffer ready to be read for the assigned thread. A buffer has a plain bytes data pointer to the
@@ -67,7 +67,7 @@ extern "C"
      * @param thr number of the current thread
      * @return XdbcBuffer ready to be read
      */
-    XdbcBuffer getXdbcBuffer(int transfer_id, int thr);
+    XdbcBuffer getXdbcBuffer(long transfer_id, int thr);
 
     /**
      * Start an xclient with the given options. Connects the xclient with the given xserver from the options and starts

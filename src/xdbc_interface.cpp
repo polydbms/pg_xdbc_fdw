@@ -10,28 +10,46 @@ void markXdbcBufferAsRead(int transfer_id, int bufferID){
     xclient->markBufferAsRead(bufferID);
 }
 
+//todo maybe take an uninitialized XdbcBuffer * as an argument and fill it and return error codes as int.
 XdbcBuffer getXdbcBuffer(int transfer_id, int thr){
-    auto xclient = connectionsMap[transfer_id];
+    try {
+        debug_print("[%s]\n", __func__);
+        auto it = connectionsMap.find(transfer_id);
+        if (it != connectionsMap.end()) {
+            auto xclient = it->second;
+            while (xclient->hasNext(thr)) {
+                debug_print("[%s] Waiting for next buffer...\n", __func__);
+                xdbc::buffWithId curBuffWithId = xclient->getBuffer(thr);
+                debug_print("[%s] Got next buffer...\n", __func__);
 
-    while(xclient->hasNext(thr)){
-        debug_print("[%s] Waiting for next buffer...\n", __func__);
-        xdbc::buffWithId curBuffWithId = xclient->getBuffer(thr);
 
-        if(curBuffWithId.iformat >= 1) {
-            auto dataPtr = reinterpret_cast<const unsigned char*>(curBuffWithId.buff.data());
-            XdbcBuffer buff{
-                    curBuffWithId.id,
-                    curBuffWithId.iformat,
-                    curBuffWithId.buff.size(),
-                    dataPtr
-            };
-            return buff;
+                if (curBuffWithId.id >= 0) {
+                    auto dataPtr = curBuffWithId.buff;
+                    XdbcBuffer buff{
+                            curBuffWithId.id,
+                            curBuffWithId.iformat,
+                            static_cast<unsigned long>(curBuffWithId.totalTuples),
+                            reinterpret_cast<unsigned char *>(dataPtr)
+                    };
+                    return buff;
+                } else {
+                    debug_print("[%s] found invalid buffer! id: %d\n", __func__,
+                                curBuffWithId.id);
+                    break;
+                }
+            }
         } else {
-            debug_print("[%s] found invalid buffer! id: %d\n", __func__,
-                        curBuffWithId.id );
-            break;
+            debug_print("[%s] Couldn't find xclient for transfer_id: %d\n", __func__, transfer_id );
         }
+    } catch (const std::exception& e) {
+        // Catch all standard exceptions derived from std::exception
+        std::cerr << "Standard exception caught: " << e.what() << std::endl;
+    } catch (...) {
+        // Catch any other types of exceptions
+        std::cerr << "Unknown exception caught" << std::endl;
     }
+
+    debug_print("[%s] No more buffers.\n", __func__);
 
     XdbcBuffer buff2{
             -1,
@@ -42,132 +60,8 @@ XdbcBuffer getXdbcBuffer(int transfer_id, int thr){
     return buff2;
 }
 
-//todo this is only for example purposes on how to read from the buffer for now.
-int storageThread(int thr, long transfer_id) {
-
-    auto xclient = connectionsMap[transfer_id];
-    auto env = envMap[transfer_id];
-
-    int totalcnt = 0;
-    int cnt = 0;
-    int buffsRead = 0;
-
-
-    //TODO: refactor to call only when columnar format (2)
-    std::vector<size_t> offsets(env->schema.size());
-    size_t baseOffset = 0;
-    for (size_t i = 0; i < env->schema.size(); ++i) {
-        offsets[i] = baseOffset;
-        baseOffset += env->tuples_per_buffer * env->schema[i].size;
-    }
-
-    while (xclient->hasNext(thr)) {
-        // Get next read buffer
-
-        xdbc::buffWithId curBuffWithId = xclient->getBuffer(thr);
-
-        if (curBuffWithId.id >= 0) {
-            if (curBuffWithId.iformat == 1) {
-
-                auto dataPtr = curBuffWithId.buff.data();
-                for (size_t i = 0; i < env->tuples_per_buffer; ++i) {
-                    size_t offset = 0;
-
-                    // Check the first attribute before proceeding
-                    //TODO: fix empty tuples by not writing them on the server side
-                    if (env->schema.front().tpe == "INT" && *reinterpret_cast<int *>(dataPtr) < 0) {
-                        debug_print("[%s] Empty tuple at buffer: %d, tupleNo: %d\n", __func__,
-                                                     curBuffWithId.id, cnt);
-                        break;
-                    }
-
-                    for (const auto &attr: env->schema) {
-                        if (attr.tpe == "INT") {
-                            //csvBuffer << *reinterpret_cast<int *>(dataPtr + offset);
-                            offset += sizeof(int);
-                        } else if (attr.tpe == "DOUBLE") {
-                            //csvBuffer << *reinterpret_cast<double *>(dataPtr + offset);
-                            offset += sizeof(double);
-                        } else if (attr.tpe == "CHAR") {
-                            //csvBuffer << *reinterpret_cast<char *>(dataPtr + offset);
-                            offset += sizeof(char);
-                        } else if (attr.tpe == "STRING") {
-                            //csvBuffer << reinterpret_cast<char *>(dataPtr + offset);;
-                            offset += attr.size;
-                        }
-
-                        //csvBuffer << (&attr != &env->schema.back() ? "," : "\n");
-                    }
-
-                    cnt++;
-                    dataPtr += offset;
-                }
-
-                //csvFile << csvBuffer.str();
-                //csvBuffer.str("");
-            }
-            if (curBuffWithId.iformat == 2) {
-
-                std::vector<void *> pointers(env->schema.size());
-                std::vector<int *> intPointers(env->schema.size());
-                std::vector<double *> doublePointers(env->schema.size());
-                std::vector<char *> charPointers(env->schema.size());
-                std::vector<char *> stringPointers(env->schema.size());
-
-                std::byte *dataPtr = curBuffWithId.buff.data();
-
-                // Initialize pointers for the current buffer
-                for (size_t j = 0; j < env->schema.size(); ++j) {
-                    pointers[j] = static_cast<void *>(dataPtr + offsets[j]);
-                    if (env->schema[j].tpe == "INT") {
-                        intPointers[j] = reinterpret_cast<int *>(pointers[j]);
-                    } else if (env->schema[j].tpe == "DOUBLE") {
-                        doublePointers[j] = reinterpret_cast<double *>(pointers[j]);
-                    } else if (env->schema[j].tpe == "CHAR") {
-                        charPointers[j] = reinterpret_cast<char *>(pointers[j]);
-                    } else if (env->schema[j].tpe == "STRING") {
-                        stringPointers[j] = reinterpret_cast<char *>(pointers[j]);
-                    }
-                }
-
-                // Loop over rows
-                for (int i = 0; i < env->tuples_per_buffer; ++i) {
-                    if (*(intPointers[0] + i) < 0) {
-                        //spdlog::get("XCLIENT")->warn("Empty tuple at buffer: {0}, tupleNo: {1}", curBuffWithId.id, i);
-                        break;  // Exit the loop if the first element is less than zero
-                    }
-                    for (size_t j = 0; j < env->schema.size(); ++j) {
-                        if (env->schema[j].tpe == "INT") {
-                            //csvBuffer << *(intPointers[j] + i);
-                        } else if (env->schema[j].tpe == "DOUBLE") {
-                            //csvBuffer << *(doublePointers[j] + i);
-                        } else if (env->schema[j].tpe == "CHAR") {
-                            //csvBuffer << *(charPointers[j] + i);
-                        } else if (env->schema[j].tpe == "STRING") {
-                            //csvBuffer << stringPointers[j] + i * env->schema[j].size;
-                        }
-                        //csvBuffer << (j < env->schema.size() - 1 ? "," : "\n");
-                    }
-                }
-
-                //csvFile << csvBuffer.str();
-                //csvBuffer.str("");
-
-            }
-            buffsRead++;
-            xclient->markBufferAsRead(curBuffWithId.id);
-        } else {
-            debug_print("[%s] found invalid buffer! id: %d, buff_no: %d\n", __func__,
-                        curBuffWithId.id, buffsRead );
-            break;
-        }
-    }
-
-    return buffsRead;
-}
-
 std::vector<xdbc::SchemaAttribute> createSchemaFromConfig(const std::string &configFile) {
-    debug_print("[%s]", __func__);
+    debug_print("[%s]\n", __func__);
     std::ifstream file(configFile);
     if (!file.is_open()) {
         debug_print("Failed to open schema: %s\n", configFile.c_str());
@@ -188,7 +82,7 @@ std::vector<xdbc::SchemaAttribute> createSchemaFromConfig(const std::string &con
 
 
 std::string readJsonFileIntoString(const std::string &filePath) {
-    debug_print("[%s]", __func__);
+    debug_print("[%s]\n", __func__);
     std::ifstream file(filePath);
     if (!file.is_open()) {
         debug_print("Failed to open schema: %s", filePath.c_str());
@@ -220,7 +114,7 @@ EnvironmentOptions createEnvOpt(){
 }
 
 void initializeEnv(const std::shared_ptr<xdbc::RuntimeEnv>& env, EnvironmentOptions &envOpt){
-    debug_print("[%s]", __func__);
+    debug_print("[%s]\n", __func__);
 
     // assign transaction parameters
     env->table = envOpt.table;
@@ -240,15 +134,9 @@ void initializeEnv(const std::shared_ptr<xdbc::RuntimeEnv>& env, EnvironmentOpti
     env->schemaJSON = "";
     env->server_port = "1234";
 
-    env->rcv_time = 0;
-    env->decomp_time = 0;
-    env->write_time = 0;
-
-    env->rcv_wait_time = 0;
-    env->decomp_wait_time = 0;
-    env->write_wait_time = 0;
     env->tuple_size = 0;
     env->tuples_per_buffer = 0;
+    env->monitor.store(false);
 }
 
 

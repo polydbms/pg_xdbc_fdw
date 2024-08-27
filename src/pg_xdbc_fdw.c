@@ -203,12 +203,23 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
     EnvironmentOptions* envOpt = linitial(fdw_private);
 
+    elog_debug("[%s] Initialize scan with options:\n  table: %s\n  server-host: %s\n"
+               "  schema file: %s\n  transfer id: %ul\n", __func__ , envOpt->table, envOpt->server_host,
+               envOpt->schema_file_with_path, envOpt->transfer_id);
+
     // Initilize xclient connection to server
     int error = xdbcInitialize(*envOpt);
 
     if(error) ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("Failed to initialize XClient!" )));
 
     // todo Have scanstate that holds current buffer for now
+    // build scan state
+    pg_xdbc_scanstate *state = (pg_xdbc_scanstate *) palloc(sizeof(pg_xdbc_scanstate));
+    state->curbuff = getXdbcBuffer(envOpt->transfer_id, 0);
+
+
+    // store scan state pointer
+    node->fdw_state = (void*) state;
 }
 
 /*
@@ -222,10 +233,21 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
 TupleTableSlot *pg_xdbc_fdwIterateForeignScan(ForeignScanState *node){
 
     /*
-     * todo retrieve scanstate with current active buffer
+     * retrieve scanstate with current active buffer
      * take next tuple from it
      * if empty fetch next buffer from xclient
      */
+
+    // retrieve scanstate and environment
+    pg_xdbc_scanstate *state = node->fdw_state;
+    List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
+    EnvironmentOptions* envOpt = linitial(fdw_private);
+
+    // retrieve buffer
+    XdbcBuffer buf = state->curbuff;
+
+    // todo put some tuple tracker in scanstate
+    // check if still unread tuple, otherwise get next buffer and mark current as read.
 
     // build tuple from already fetched rows and increment read counter
 //    elog_debug("[%s] Storing tuple in TupleTableSlot from batch %lu at index %lu", __func__, state->batchIndex-1, state->rowsRead );
@@ -258,9 +280,7 @@ void pg_xdbc_fdwReScanForeignScan(ForeignScanState *node){elog_debug("%s",__func
  */
 void pg_xdbc_fdwEndForeignScan(ForeignScanState *node){
     elog_debug("[%s] Dropping sheet in ParserInterface", __func__);
-    pg_sheet_scanstate *state = node->fdw_state;
-    // todo clear scan state
-    MemoryContextDelete(state->context);
+    // todo check what we finally have to clear up
 }
 
 /*
