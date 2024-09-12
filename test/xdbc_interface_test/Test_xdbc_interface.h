@@ -10,5 +10,10 @@
 #include <unistd.h>
 #include "xdbc_interface.h"
 
+typedef struct{
+    int thread_num;
+    long transfer_id;
+} thread_params;
+
 
 #endif //PG_XDBC_FDW_TEST_XDBC_INTERFACE_H

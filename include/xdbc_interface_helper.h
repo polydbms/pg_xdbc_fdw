@@ -14,6 +14,19 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 
+#include <iostream>
+#include <thread>
+#include <numeric>
+#include <fstream>
+#include <iomanip>
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+#include <boost/program_options.hpp>
+#include <nlohmann/json.hpp>
+#include "xclient.h"
+#include <algorithm>
+#include <utility>
+
 
 // debug flag. Uncomment to enable console debug printing
 #define XDBCINTERFACE_DEBUG

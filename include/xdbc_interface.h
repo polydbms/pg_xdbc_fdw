@@ -36,7 +36,7 @@ extern "C"
     typedef struct XdbcBuffer{
         int id;
         int iformat;
-        unsigned long size;
+        unsigned long tuplesCount;
         unsigned char* data;
     } XdbcBuffer;
 
@@ -76,6 +76,12 @@ extern "C"
      * @return Error code
      */
     int xdbcInitialize(EnvironmentOptions envOpt);
+
+    /**
+     * Closes the connection for the transfer id.
+     * @param transfer_id
+     */
+    void xdbcClose(long transfer_id);
 
 #ifdef __cplusplus
 }
