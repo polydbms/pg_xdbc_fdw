@@ -37,12 +37,12 @@ Datum pg_xdbc_fdw_handler(PG_FUNCTION_ARGS){
     fdwroutine->EndForeignScan = pg_xdbc_fdwEndForeignScan;
 
     // parallel routines
-    fdwroutine->IsForeignScanParallelSafe = pg_xdbc_fdwIsForeignScanParallelSafe;
-    fdwroutine->EstimateDSMForeignScan = pg_xdbc_fdwEstimateDSMForeignScan;
-    fdwroutine->InitializeDSMForeignScan = pg_xdbc_fdwInitializeDSMForeignScan;
-    fdwroutine->ReInitializeDSMForeignScan = pg_xdbc_fdwReInitializeDSMForeignScan;
-    fdwroutine->InitializeWorkerForeignScan = pg_xdbc_fdwInitializeWorkerForeignScan;
-    fdwroutine->ShutdownForeignScan = pg_xdbc_fdwShutdownForeignScan;
+//    fdwroutine->IsForeignScanParallelSafe = pg_xdbc_fdwIsForeignScanParallelSafe;
+//    fdwroutine->EstimateDSMForeignScan = pg_xdbc_fdwEstimateDSMForeignScan;
+//    fdwroutine->InitializeDSMForeignScan = pg_xdbc_fdwInitializeDSMForeignScan;
+//    fdwroutine->ReInitializeDSMForeignScan = pg_xdbc_fdwReInitializeDSMForeignScan;
+//    fdwroutine->InitializeWorkerForeignScan = pg_xdbc_fdwInitializeWorkerForeignScan;
+//    fdwroutine->ShutdownForeignScan = pg_xdbc_fdwShutdownForeignScan;
 
     PG_RETURN_POINTER(fdwroutine);
 }
@@ -133,9 +133,9 @@ pg_xdbc_fdwShutdownForeignScan(ForeignScanState *node){
  * (The initial value is from pg_class.reltuples which represents the total row count seen by the last ANALYZE.)
  */
 void pg_xdbc_fdwGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid foreigntableid){
-    EnvironmentOptions* envOpt = palloc(sizeof(EnvironmentOptions));
-    EnvironmentOptions tempOpt = createEnvOpt();
-    memcpy(envOpt, &(tempOpt), sizeof(EnvironmentOptions ));
+    XdbcEnvironmentOptions* envOpt = palloc(sizeof(XdbcEnvironmentOptions));
+    XdbcEnvironmentOptions tempOpt = xdbcCreateEnvOpt();
+    memcpy(envOpt, &(tempOpt), sizeof(XdbcEnvironmentOptions ));
     pg_xdbc_fdwGetOptions(foreigntableid, &envOpt->table, &envOpt->server_host,
                           &envOpt->schema_file_with_path, &envOpt->mode,
                           &envOpt->buffer_size, &envOpt->bufferpool_size,
@@ -201,26 +201,67 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
 
     // Retrieve EnvironmentOptions
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
-    EnvironmentOptions* envOpt = linitial(fdw_private);
+    XdbcEnvironmentOptions* envOpt = linitial(fdw_private);
 
     elog_debug("[%s] Initialize scan with options:\n  table: %s\n  server-host: %s\n"
-               "  schema file: %s\n  transfer id: %ul\n", __func__ , envOpt->table, envOpt->server_host,
+               "  schema_file_path: %s\n  transfer_id: %lu\n", __func__ , envOpt->table, envOpt->server_host,
                envOpt->schema_file_with_path, envOpt->transfer_id);
 
     // Initilize xclient connection to server
     int error = xdbcInitialize(*envOpt);
 
-    if(error) ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("Failed to initialize XClient!" )));
+    if(error) {
+        sleep(5);
+        ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("Failed to initialize XClient! Error code: %d" , error)));
+    }
 
-    // todo Have scanstate that holds current buffer for now
     // build scan state
+    elog_debug("[%s] Building scan state...", __func__);
     pg_xdbc_scanstate *state = (pg_xdbc_scanstate *) palloc(sizeof(pg_xdbc_scanstate));
-    state->curbuff = getXdbcBuffer(envOpt->transfer_id, 0);
-
+    state->curbuff = xdbcGetBuffer(envOpt->transfer_id, 0);
+    state->schemaDesc = xdbcGetSchemaDesc(envOpt->transfer_id);
+    state->readTuples = 0;
+    state->totalReadTuples = 0;
 
     // store scan state pointer
+    elog_debug("[%s] Finished scan setup.", __func__);
     node->fdw_state = (void*) state;
 }
+
+Fdw_one_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state){
+    unsigned char* dataPtr = state->curbuff.data;
+    dataPtr += state->readTuples * state->schemaDesc.rowOffset;
+    Fdw_one_slot slot;
+    slot.values = (Datum *) palloc(sizeof(Datum) * state->schemaDesc.attrCount);
+    slot.isnulls = (bool *) palloc(sizeof(bool*) * state->schemaDesc.attrCount);
+    for(unsigned long i = 0; i < state->schemaDesc.attrCount; ++i){
+        slot.isnulls[i] = false;
+        switch (state->schemaDesc.attrTypeCodes[i]) {
+            case 'S':
+                ;
+                char *s = (char*)dataPtr;
+                slot.values[i] = CStringGetTextDatum(s);
+                break;
+            case 'I':
+                slot.values[i] = Int32GetDatum(*(int*)dataPtr);
+                break;
+            case 'D':
+                slot.values[i] = Float8GetDatum(*(double*)dataPtr);
+                break;
+            case 'C':
+                ;
+                char c = *(char*)dataPtr;
+                slot.values[i] = CStringGetTextDatum(&c);
+                break;
+            default:
+                slot.isnulls[i] = true;
+                break;
+        }
+        dataPtr += state->schemaDesc.attrSizes[i];
+    }
+    return slot;
+}
+
 
 /*
  * Fetch one row from the foreign source, returning it in a tuple table slot
@@ -241,27 +282,40 @@ TupleTableSlot *pg_xdbc_fdwIterateForeignScan(ForeignScanState *node){
     // retrieve scanstate and environment
     pg_xdbc_scanstate *state = node->fdw_state;
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
-    EnvironmentOptions* envOpt = linitial(fdw_private);
+    XdbcEnvironmentOptions* envOpt = linitial(fdw_private);
 
-    // retrieve buffer
-    XdbcBuffer buf = state->curbuff;
+    // check if all tuples read
+    if(state->readTuples >= state->curbuff.tuplesCount){
+        // get new buffer
+        elog_debug("[%s] Mark old buffer as read", __func__);
+        xdbcMarkBufferAsRead(envOpt->transfer_id, state->curbuff.id);
+        state->curbuff = xdbcGetBuffer(envOpt->transfer_id, 0);
+        elog_debug("[%s] Got new buffer with %lu tuples", __func__, state->curbuff.tuplesCount);
+        state->readTuples = 0;
+        // check if all buffers read
+        if(state->curbuff.id < 0){
+            elog_debug("[%s] All buffers finished. Total amount of tuples read: %lu", __func__, state->totalReadTuples);
+            return NULL;
+        }
+    }
 
-    // todo put some tuple tracker in scanstate
-    // check if still unread tuple, otherwise get next buffer and mark current as read.
+    Fdw_one_slot newslot = pg_xdbc_fdwReadTupleBuildSlot(state);
 
     // build tuple from already fetched rows and increment read counter
 //    elog_debug("[%s] Storing tuple in TupleTableSlot from batch %lu at index %lu", __func__, state->batchIndex-1, state->rowsRead );
     TupleTableSlot *slot = node->ss.ss_ScanTupleSlot;
     ExecClearTuple(slot);
     // virtual tuple
-    slot->tts_values = &(state->cells[state->batchIndex-1][state->rowsRead * state->columnCount]);
-    slot->tts_isnull = &(state->isnull[state->batchIndex-1][state->rowsRead * state->columnCount]);
+    slot->tts_values = newslot.values;
+    slot->tts_isnull = newslot.isnulls;
     ExecStoreVirtualTuple(slot);
     // heap tuple
 //    Datum* values = &(state->cells[state->batchIndex-1][state->rowsRead * state->columnCount]);
 //    bool* isnull = &(state->isnull[state->batchIndex-1][state->rowsRead * state->columnCount]);
 //    HeapTuple tuple = heap_form_tuple(slot->tts_tupleDescriptor, values, isnull);
 //    ExecStoreHeapTuple(tuple, slot, 0);
+    state->readTuples++;
+    state->totalReadTuples++;
     return slot;
 }
 
@@ -279,8 +333,13 @@ void pg_xdbc_fdwReScanForeignScan(ForeignScanState *node){elog_debug("%s",__func
  * of the whole foreign table scan and will be released with it. But we can already release it here.
  */
 void pg_xdbc_fdwEndForeignScan(ForeignScanState *node){
-    elog_debug("[%s] Dropping sheet in ParserInterface", __func__);
-    // todo check what we finally have to clear up
+    elog_debug("[%s] Closing connection...", __func__);
+
+    List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
+    XdbcEnvironmentOptions* envOpt = linitial(fdw_private);
+    xdbcClose(envOpt->transfer_id);
+    pg_xdbc_scanstate *state = node->fdw_state;
+    pfree(state);
 }
 
 /*

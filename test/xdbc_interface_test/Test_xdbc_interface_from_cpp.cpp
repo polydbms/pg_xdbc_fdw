@@ -112,14 +112,14 @@ int analyticsThread(int thr, long &totalcnt) {
 
     int buffsRead = 0;
 
-    XdbcBuffer buf = getXdbcBuffer(0, thr);
+    XdbcBuffer buf = xdbcGetBuffer(0, thr);
 
     while(buf.id >= 0){
         totalcnt += buf.tuplesCount;
-        markXdbcBufferAsRead(0,buf.id);
+        xdbcMarkBufferAsRead(0,buf.id);
         buffsRead++;
 
-        buf = getXdbcBuffer(0,thr);
+        buf = xdbcGetBuffer(0,thr);
     }
     spdlog::get("XCLIENT")->warn("Write thread {0} found invalid buffer with id: {1}, buff_no: {2}",
                                  thr, buf.id, buffsRead);
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 
     auto console = spdlog::stdout_color_mt("XCLIENT");
 
-    EnvironmentOptions envOptOld = createEnvOpt();
+    XdbcEnvironmentOptions envOptOld = xdbcCreateEnvOpt();
     char table[] = "lineitem_sf10";
     envOptOld.table = new char[strlen(table) +1];
     std::strcpy(envOptOld.table, table);

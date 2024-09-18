@@ -104,11 +104,28 @@ pg_xdbc_fdwShutdownForeignScan(ForeignScanState *node);
 typedef struct {
     // current xclient buffer
     XdbcBuffer curbuff;
-    // how many tuples already read from curbuf
-
+    unsigned long readTuples; // how many tuples already read from curbuf
+    unsigned long totalReadTuples;
+    XdbcSchemaDesc schemaDesc;
 } pg_xdbc_scanstate;
 
+/**
+ * struct for one tuple slot. Has value and isnull fields.
+ */
+ typedef struct{
+     Datum* values;
+     bool* isnulls;
+ } Fdw_one_slot;
+
 //==============================================================  helper functions
+
+/**
+ * reads one tuple from the buffer and increments its read state.
+ * @param buf buffer form which to read a tuple
+ * @return Fdw_one_slot with value and isnull memory filled.
+ */
+Fdw_one_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state);
+
 
 /**
  * Parses fdw table options. One should create an EnvironmentOptions struct and pass pointers to the fields in here.

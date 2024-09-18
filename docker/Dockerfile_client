@@ -85,8 +85,11 @@ RUN mkdir -p /pg_xdbc_fdw/ressources/schemas
 COPY ressources/schemas /pg_xdbc_fdw/ressources/schemas
 
 # Run installation command for the fdw
-#RUN echo "Installing pg_xdbc_fdw." \
-#    && cd /pg_xdbc_fdw/ && make USE_PGXS=1 install
+# first pre generate LLVM IR, as there is no way to give it the needed -std=c++17 flag!!
+RUN cd /pg_xdbc_fdw/ && /usr/bin/clang-15 -xc++ -Wno-ignored-attributes -fno-strict-aliasing -fwrapv -Xclang -no-opaque-pointers -O2  -I./include -I./submodules/xdbc-client/xdbc -I./submodules/xdbc-server -I. -I./ -I/usr/include/postgresql/13/server -I/usr/include/postgresql/internal  -Wdate-time -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -I/usr/include/libxml2 -std=c++17 -flto=thin -emit-llvm -c -o src/xdbc_interface.bc src/xdbc_interface.cpp
+
+RUN echo "Installing pg_xdbc_fdw." \
+    && cd /pg_xdbc_fdw/ && make USE_PGXS=1 install
 
 # Copy test files and compile test
 COPY test /pg_xdbc_fdw/test

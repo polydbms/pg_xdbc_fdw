@@ -14,7 +14,7 @@ extern "C"
     /**
      * Struct holding all the options values possible for the xdbc client request.
      */
-    typedef struct EnvironmentOptions {
+    typedef struct XdbcEnvironmentOptions {
         char *table;
         char *server_host;
         char *schema_file_with_path;
@@ -28,7 +28,7 @@ extern "C"
         int decomp_parallelism;
         int mode;
         long transfer_id;
-    } EnvironmentOptions;
+    } XdbcEnvironmentOptions;
 
     /**
      * Struct for holding a buffer pointer and some metadata
@@ -41,17 +41,35 @@ extern "C"
     } XdbcBuffer;
 
     /**
+     * Struct holding schema meta data. Attribute count, size of each attribute,
+     */
+    typedef struct XdbcSchemaDesc{
+        unsigned long attrCount;
+        unsigned long rowOffset;
+        unsigned long* attrSizes;
+        unsigned long* inRowOffsets;
+        unsigned long* attrTypeCodes;
+    } XdbcSchemaDesc;
+
+    /**
+     * Creates an XdbcSchemaDesc and fills its values from the corresponding schema.
+     * @param transfer_id Connection id from which to get the schema
+     * @return XdbcSchemaDesc with schema metadata from connection
+     */
+    XdbcSchemaDesc xdbcGetSchemaDesc(long transfer_id);
+
+    /**
      * Creates an EnvironmentOptions struct with default values.
      * @return Returns an EnvironmentOptions struct with default values.
      */
-    EnvironmentOptions createEnvOpt();
+    XdbcEnvironmentOptions xdbcCreateEnvOpt();
 
     /**
      * Mark a used buffer as read for the xclient. This invalidates the buffer, so that it can be reused.
      * @param transfer_id id of the current transfer under which the buffer was aquired
      * @param bufferID id of the buffer
      */
-    void markXdbcBufferAsRead(long transfer_id, int bufferID);
+    void xdbcMarkBufferAsRead(long transfer_id, int bufferID);
 
     /**
      * Get the next buffer ready to be read for the assigned thread. A buffer has a plain bytes data pointer to the
@@ -67,7 +85,7 @@ extern "C"
      * @param thr number of the current thread
      * @return XdbcBuffer ready to be read
      */
-    XdbcBuffer getXdbcBuffer(long transfer_id, int thr);
+    XdbcBuffer xdbcGetBuffer(long transfer_id, int thr);
 
     /**
      * Start an xclient with the given options. Connects the xclient with the given xserver from the options and starts
@@ -75,7 +93,7 @@ extern "C"
      * @param envOpt Transfer target and options
      * @return Error code
      */
-    int xdbcInitialize(EnvironmentOptions envOpt);
+    int xdbcInitialize(XdbcEnvironmentOptions envOpt);
 
     /**
      * Closes the connection for the transfer id.

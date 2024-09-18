@@ -4,22 +4,55 @@
 
 #include "Test_xdbc_interface.h"
 
+void printBufferHead(XdbcBuffer buff, XdbcSchemaDesc desc) {
+    printf("This buffer has id: %d, format: %d, tuplesCount: %ld, attributes per tuple: %ld\n", buff.id, buff.iformat,
+           buff.tuplesCount, desc.attrCount);
+}
 
-void printBuffer(XdbcBuffer buff){
-    printf("id: %d, iformat: %d, size: %lu\n", buff.id, buff.iformat, buff.tuplesCount);
+void printBuffer(XdbcBuffer buff, XdbcSchemaDesc desc){
+    unsigned char* dataPtr = buff.data;
+    for(unsigned long i = 0; i < buff.tuplesCount; ++i){
+        for(unsigned long j = 0; j < desc.attrCount; ++j){
+            printf(" | ");
+            switch (desc.attrTypeCodes[j]) {
+                case 'S':
+                    printf("%s", dataPtr);
+                    break;
+                case 'I':
+                    printf("%d", *(int*)dataPtr);
+                    break;
+                case 'D':
+                    printf("%f", *(double*)dataPtr);
+                    break;
+                case 'C':
+                    printf("%c", *dataPtr);
+                    break;
+                default:
+                    break;
+            }
+            dataPtr += desc.attrSizes[j];
+        }
+        printf("\n");
+    }
 }
 
 void * threadFunction(void * arg){
     thread_params * params = (thread_params *)arg;
     printf("[%s] Started thread %d.\n", __func__, params->thread_num);
     XdbcBuffer buff;
-    buff = getXdbcBuffer(params->transfer_id, params->thread_num);
+    XdbcSchemaDesc desc = xdbcGetSchemaDesc(params->transfer_id);
+    if(desc.attrCount == 0){
+        printf("[%s] Thread %d: Schema desc with zero attributes!\n", __func__, params->thread_num);
+        return NULL;
+    }
+    buff = xdbcGetBuffer(params->transfer_id, params->thread_num);
     while(buff.id >= 0){
-        // todo read buffer
-        printBuffer(buff);
+        printBufferHead(buff, desc);
+        // read just one buffer for testing
+//        if(buff.id == 1) printBuffer(buff, desc);
 
-        markXdbcBufferAsRead(params->transfer_id, buff.id);
-        buff = getXdbcBuffer(params->transfer_id, params->thread_num);
+        xdbcMarkBufferAsRead(params->transfer_id, buff.id);
+        buff = xdbcGetBuffer(params->transfer_id, params->thread_num);
     }
     printf("[%s] Ended thread %d.\n", __func__, params->thread_num);
     return NULL;
@@ -30,7 +63,7 @@ int main(int argc, char** argv){
     printf("Start!\n");
     printf("Building RuntimeOptions...\n");
 
-    EnvironmentOptions env = createEnvOpt();
+    XdbcEnvironmentOptions env = xdbcCreateEnvOpt();
     // todo handle command line options to customize env
     env.table = "lineitem_sf0001";
     env.server_host = "pg_xdbc_fdw-xdbc-server-1";
