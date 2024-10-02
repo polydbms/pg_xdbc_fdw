@@ -1,0 +1,1 @@
+SELECT * FROM jdbc.pg1_sf10_lineitem;

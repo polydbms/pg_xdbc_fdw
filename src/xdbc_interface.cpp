@@ -225,7 +225,7 @@ void printRuntimeEnv(const xdbc::RuntimeEnv& runtimeEnv) {
 }
 
 int xdbcInitialize(XdbcEnvironmentOptions envOpt){
-    debug_print("[%s] Initializing new client connection!", __func__ );
+    debug_print("[%s] Initializing new client connection!\n", __func__ );
     try {
         printEnvironmentOptions(envOpt);
 
@@ -294,6 +294,7 @@ void xdbcClose(long transfer_id){
         auto it2 = envMap.find(transfer_id);
         if (it != connectionsMap.end() && it2 != envMap.end()) {
             it->second->finalize();
+            debug_print("[%s] Reference count on xclient pointer in map: %ld\n", __func__ , it->second.use_count() );
             connectionsMap.erase(it);
             envMap.erase(it2);
         }

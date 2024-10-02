@@ -62,55 +62,37 @@ RUN git clone https://github.com/LLNL/fpzip.git && cd fpzip && \
     cmake --build . --config Release && \
     make install
 
-# Copy xdbc files and directories from the host machine to the container and compile submodules
-RUN mkdir /pg_xdbc_fdw
-COPY submodules /pg_xdbc_fdw/submodules
+# install postgres dependencies
 
-# Run installation command for xdbc client
-WORKDIR /pg_xdbc_fdw/submodules/xdbc-client/
-RUN mkdir build && cd build && cmake .. && make -j8 && make install
-RUN ldconfig
+RUN apt install -qy libpq-dev libpqxx-dev
 
-# Run installation command for xdbc client test
-RUN mkdir tests/build && cd tests/build && cmake .. && make -j8
-WORKDIR /
+# install clickhouse depencencies
 
-# install postgres jdbc and java
-RUN echo hi
-RUN apt-get update
-RUN apt-get upgrade -qy
-RUN apt-get install -qy --no-install-recommends \
-        openjdk-8-jdk
+RUN apt-get install -y libabsl-dev
 
-RUN ln -s /usr/lib/jvm/java-8-openjdk-amd64/jre/lib/amd64/server/libjvm.so /usr/lib/libjvm.so
-RUN git clone https://github.com/pgspider/jdbc_fdw.git \
-    && cd jdbc_fdw \
-    && make clean USE_PGXS=1 && make install USE_PGXS=1
+RUN git clone https://github.com/google/cityhash.git
 
-# Copy xdbc fdw code
-COPY pg_xdbc_fdw.control /pg_xdbc_fdw/
-COPY pg_xdbc_fdw--0.1.sql /pg_xdbc_fdw/
-COPY Makefile /pg_xdbc_fdw/Makefile
-COPY src /pg_xdbc_fdw/src
-COPY include /pg_xdbc_fdw/include
-RUN mkdir -p /pg_xdbc_fdw/ressources/schemas
-COPY ressources/schemas /pg_xdbc_fdw/ressources/schemas
-COPY experiments/ /pg_xdbc_fdw/experiments
+RUN cd /cityhash && ./configure && make all check CXXFLAGS="-g -O3" && make install
 
-# Run installation command for the fdw
-# first pre generate LLVM IR, as there is no way to give it the needed -std=c++17 flag!!
-RUN cd /pg_xdbc_fdw/ && /usr/bin/clang-15 -xc++ -Wno-ignored-attributes -fno-strict-aliasing -fwrapv -Xclang -no-opaque-pointers -O2  -I./include -I./submodules/xdbc-client/xdbc -I./submodules/xdbc-server -I. -I./ -I/usr/include/postgresql/13/server -I/usr/include/postgresql/internal  -Wdate-time -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -I/usr/include/libxml2 -std=c++17 -flto=thin -emit-llvm -c -o src/xdbc_interface.bc src/xdbc_interface.cpp
+# install clickhouse-lib
 
-RUN echo "Installing pg_xdbc_fdw." \
-    && cd /pg_xdbc_fdw/ && make USE_PGXS=1 install
+RUN git clone https://github.com/ClickHouse/clickhouse-cpp.git
 
-# also download postgresql jdbc driver
-RUN mkdir /pg_xdbc_fdw/ressources/driver
-RUN cd /pg_xdbc_fdw/ressources/driver && curl -O https://jdbc.postgresql.org/download/postgresql-42.7.4.jar
+RUN cd /clickhouse-cpp && rm -rf build && mkdir build && cd build && cmake .. -DWITH_SYSTEM_ABSEIL=ON && make -j8 && make install
 
-# Copy test files and compile test
-COPY test /pg_xdbc_fdw/test
-RUN cd /pg_xdbc_fdw/test/xdbc_interface_test/ && make
+# copy and install xdbc server
+RUN mkdir /xdbc-server
+
+ADD submodules/xdbc-server/* /xdbc-server/
+ADD submodules/xdbc-server/Compression /xdbc-server/Compression
+ADD submodules/xdbc-server/DataSources /xdbc-server/DataSources
+RUN ls /xdbc-server
+
+RUN rm -rf  /xdbc-server/CMakeCache.txt
+RUN rm -rf /xdbc-server/build && mkdir /xdbc-server/build && cd /xdbc-server/build && cmake .. -D CMAKE_BUILD_TYPE=Release && make -j8
+
+# add data import scripts
+COPY experiments/ /experiments/
 
 # Set Postgres configuration
 USER postgres

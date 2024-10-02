@@ -22,7 +22,7 @@
 
 
 // debug flag. Uncomment to enable console debug printing
-#define XDBCINTERFACE_DEBUG
+//#define XDBCINTERFACE_DEBUG
 
 #ifdef XDBCINTERFACE_DEBUG
 #define debug_print(...) printf(__VA_ARGS__)

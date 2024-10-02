@@ -1,0 +1,7 @@
+fdw,dataset,execution_time
+xdbc,xdbc_sf0001_lineitem,1.363811000
+xdbc,xdbc_sf10_lineitem,1128.399000000
+xdbc,xdbc_sf1_lineitem,105.040700000
+native,pg1_sf0001_lineitem,0.393927700
+native,pg1_sf10_lineitem,1872.568000000
+native,pg1_sf1_lineitem,182.827600000

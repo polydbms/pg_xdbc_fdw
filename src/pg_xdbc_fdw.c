@@ -14,6 +14,7 @@ PG_FUNCTION_INFO_V1(pg_xdbc_fdw_validator);
 // Here you can load global stuff needed for the FDW to work.
 void _PG_init(void){
     elog_debug("Initialization of FDW!");
+    pg_xdbc_transfer_id = 0;
 }
 
 // Gets NEVER called!! (May change in postgres future)
@@ -202,6 +203,7 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
     // Retrieve EnvironmentOptions
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
     XdbcEnvironmentOptions* envOpt = linitial(fdw_private);
+    envOpt->transfer_id = ++pg_xdbc_transfer_id;
 
     elog_debug("[%s] Initialize scan with options:\n  table: %s\n  server-host: %s\n"
                "  schema_file_path: %s\n  transfer_id: %lu\n", __func__ , envOpt->table, envOpt->server_host,
@@ -211,7 +213,6 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
     int error = xdbcInitialize(*envOpt);
 
     if(error) {
-        sleep(5);
         ereport(ERROR, (errcode(ERRCODE_FDW_ERROR), errmsg("Failed to initialize XClient! Error code: %d" , error)));
     }
 
@@ -228,10 +229,10 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
     node->fdw_state = (void*) state;
 }
 
-Fdw_one_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state){
+pg_xdbc_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state){
     unsigned char* dataPtr = state->curbuff.data;
     dataPtr += state->readTuples * state->schemaDesc.rowOffset;
-    Fdw_one_slot slot;
+    pg_xdbc_slot slot;
     slot.values = (Datum *) palloc(sizeof(Datum) * state->schemaDesc.attrCount);
     slot.isnulls = (bool *) palloc(sizeof(bool*) * state->schemaDesc.attrCount);
     for(unsigned long i = 0; i < state->schemaDesc.attrCount; ++i){
@@ -287,10 +288,10 @@ TupleTableSlot *pg_xdbc_fdwIterateForeignScan(ForeignScanState *node){
     // check if all tuples read
     if(state->readTuples >= state->curbuff.tuplesCount){
         // get new buffer
-        elog_debug("[%s] Mark old buffer as read", __func__);
+        //elog_debug("[%s] Mark old buffer as read", __func__);
         xdbcMarkBufferAsRead(envOpt->transfer_id, state->curbuff.id);
         state->curbuff = xdbcGetBuffer(envOpt->transfer_id, 0);
-        elog_debug("[%s] Got new buffer with %lu tuples", __func__, state->curbuff.tuplesCount);
+        //elog_debug("[%s] Got new buffer with %lu tuples", __func__, state->curbuff.tuplesCount);
         state->readTuples = 0;
         // check if all buffers read
         if(state->curbuff.id < 0){
@@ -299,7 +300,7 @@ TupleTableSlot *pg_xdbc_fdwIterateForeignScan(ForeignScanState *node){
         }
     }
 
-    Fdw_one_slot newslot = pg_xdbc_fdwReadTupleBuildSlot(state);
+    pg_xdbc_slot newslot = pg_xdbc_fdwReadTupleBuildSlot(state);
 
     // build tuple from already fetched rows and increment read counter
 //    elog_debug("[%s] Storing tuple in TupleTableSlot from batch %lu at index %lu", __func__, state->batchIndex-1, state->rowsRead );
@@ -356,7 +357,6 @@ GetInt64Option(DefElem *def)
                 (errcode(ERRCODE_INVALID_PARAMETER_VALUE),
                         errmsg("invalid value for option \"%s\": \"%s\"",
                                def->defname, str_val)));
-
     return result;
 }
 
@@ -417,13 +417,15 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "iformat") == 0)
         {
-            *iformat = defGetInt32(def);
+            char *value_str = defGetString(def);
+            *iformat = pg_strtoint32(value_str);
             elog_debug("[%s] Got iformat with value: %d", __func__, *iformat);
         }
 
         if (strcmp(def->defname, "buffer_size") == 0)
         {
-            int customBufferSize = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customBufferSize = pg_strtoint32(value_str);
             if (customBufferSize > 0)
             {
                 *buffer_size = customBufferSize;
@@ -433,7 +435,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "buffer_pool_size") == 0)
         {
-            int customBufferPoolSize = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customBufferPoolSize = pg_strtoint32(value_str);
             if (customBufferPoolSize > 0)
             {
                 *buffer_pool_size = customBufferPoolSize;
@@ -443,7 +446,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "sleep_time") == 0)
         {
-            int customSleepTime = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customSleepTime = pg_strtoint32(value_str);
             if (customSleepTime > 0)
             {
                 *sleep_time = customSleepTime;
@@ -453,7 +457,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "net_parallelism") == 0)
         {
-            int customNetParallelism = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customNetParallelism = pg_strtoint32(value_str);
             if (customNetParallelism > 0)
             {
                 *net_parallelism = customNetParallelism;
@@ -463,7 +468,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "read_parallelism") == 0)
         {
-            int customReadParallelism = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customReadParallelism = pg_strtoint32(value_str);
             if (customReadParallelism > 0)
             {
                 *read_parallelism = customReadParallelism;
@@ -473,7 +479,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "decomp_parallelism") == 0)
         {
-            int customDecompParallelism = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customDecompParallelism = pg_strtoint32(value_str);
             if (customDecompParallelism > 0)
             {
                 *decomp_parallelism = customDecompParallelism;
@@ -483,7 +490,8 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
 
         if (strcmp(def->defname, "tuple_size") == 0)
         {
-            int customTupleSize = defGetInt32(def);
+            char *value_str = defGetString(def);
+            int customTupleSize = pg_strtoint32(value_str);
             if (customTupleSize > 0)
             {
                 *tuple_size = customTupleSize;

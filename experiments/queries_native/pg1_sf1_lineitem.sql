@@ -1,0 +1,1 @@
+SELECT * FROM native_fdw.pg1_sf1_lineitem;

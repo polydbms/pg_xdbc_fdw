@@ -115,7 +115,12 @@ typedef struct {
  typedef struct{
      Datum* values;
      bool* isnulls;
- } Fdw_one_slot;
+ } pg_xdbc_slot;
+
+ /**
+  * variable holding transfer count of current instance of fdw shared library. Used as transfer_id.
+  */
+  long pg_xdbc_transfer_id;
 
 //==============================================================  helper functions
 
@@ -124,7 +129,7 @@ typedef struct {
  * @param buf buffer form which to read a tuple
  * @return Fdw_one_slot with value and isnull memory filled.
  */
-Fdw_one_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state);
+pg_xdbc_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state);
 
 
 /**

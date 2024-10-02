@@ -1,0 +1,3 @@
+fdw,dataset,execution_time
+jdbc,jdbc_sf0001_lineitem,1.376804000
+jdbc,jdbc_sf1_lineitem,341.924000000

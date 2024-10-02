@@ -1,0 +1,1 @@
+SELECT * FROM xdbc.pg1_sf0001_lineitem;

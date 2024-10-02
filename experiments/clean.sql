@@ -1,0 +1,7 @@
+-- drop the fdws and schemas
+DROP EXTENSION IF EXISTS postgres_fdw CASCADE;
+DROP EXTENSION IF EXISTS jdbc_fdw CASCADE;
+DROP EXTENSION IF EXISTS pg_xdbc_fdw CASCADE;
+
+DROP SCHEMA IF EXISTS native_fdw;
+DROP SCHEMA IF EXISTS jdbc;
