@@ -8,6 +8,9 @@ This fdw interfaces with XDBC Client and XDBC Server, which establishes data tra
 
 Hi Hari :)
 
+Als allererstes nach dem pullen dieses repo musst du die submodule initialisieren mit: `git submodule update --init --recursive
+`dann gehts los:
+
 Als erstes schreibst du in experimente/setup_fdw.sql deine foreign tables rein. Dort steht als kommentar ganz oben worauf du achten musst. Dann packst du die passenden schema files für alle xdbc tables in ressources/schemas. Achte darauf, dass in den xdbc tables in der option die richtigen dateien als pfad angegeben sind. Steht auch in der anleitung in setup_fdw.sql.
 
 Danach gehst du ins docker verzeichnis und führst da make aus. Das baut den pg_xdbc_fdw_client mit xdbc, jdbc, postgres jdbc treiber, postgres_fdw. 

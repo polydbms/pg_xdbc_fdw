@@ -101,7 +101,7 @@ run_queries() {
             # Measure the execution time in psql
             start_time=$(date +%s.%N)  # Start time in seconds since epoch
             docker exec "${client_container_name}" \
-              psql db1 -v ON_ERROR_STOP=1 -c "SET statement_timeout = ${TIMEOUT_DURATION};" "select * from ${table};" > /dev/null 2>&1
+              psql db1 -v ON_ERROR_STOP=1 -c "SET statement_timeout = ${TIMEOUT_DURATION}; select * from ${table};" > /dev/null 2>&1
             end_time=$(date +%s.%N)  # End time in seconds since epoch
 
             # Calculate execution time
