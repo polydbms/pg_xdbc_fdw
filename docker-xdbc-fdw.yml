@@ -1,66 +1,18 @@
 services:
-  xdbc-server:
-    image: xdbc-server
-    container_name: pg_xdbc_server
-    restart: always
-    volumes:
-      - /dev/shm:/dev/shm
-      - test-data:/data
-    ports:
-      - 1234:1234
-      - 1235:1235
-      - 1236:1236
-      - 1237:1237
-      - 1238:1238
-    shm_size: '16gb'
-    cap_add:
-      - NET_ADMIN
-    labels:
-      com.docker-tc.enabled: 1
-
-  xdbc-client:
-    image: xdbc-client
-    container_name: pg_xdbc_test_client
-    restart: always
-    volumes:
-      - /dev/shm:/dev/shm
-    shm_size: '16gb'
-    cap_add:
-      - NET_ADMIN
-    labels:
-      com.docker-tc.enabled: 1
-
   pg_xdbc_client_fdw:
-    image: pg_xdbc_fdw_client
+    image: pg_xdbc_fdw_client:latest
     container_name: pg_xdbc_client
     restart: always
     volumes:
       - /dev/shm:/dev/shm
-      - test-data:/data
-      - pgvolume2:/var/lib/postgresql/
     shm_size: '16gb'
     cap_add:
       - NET_ADMIN
+    networks:
+      - xdbc-net
     labels:
       com.docker-tc.enabled: 1
 
-  postgres-1:
-    image: postgresdb
-    container_name: pg1
-    restart: always
-    volumes:
-      - test-data:/data
-      - pgvolume1:/var/lib/postgresql/
-    ports:
-      - 15432:5432
-    shm_size: '2gb'
-
-volumes:
-  test-data:
-    external: true
-  pgvolume1:
-  pgvolume2:
-
 networks:
-  default:
-    name: pg-xdbc-net
+  xdbc-net:
+    external: true

@@ -16,13 +16,13 @@ set -v
 # ==================================================  VARIABLES ======================================
 
 # datasets
-dataset_tables=("pg1_sf0001_lineitem") #"pg1_sf1_lineitem" "pg1_sf10_lineitem")
+dataset_tables=("ss13husallm", "inputeventsm","iotm") #"lineitem_sf10"
 
 # schemas
 schema_prefixes=("xdbc" "native_fdw" "jdbc")
 
 # timeout in seconds
-timeout_in_seconds=3600
+timeout_in_seconds=900
 
 # Output directory
 out_dir="experiment_results"
@@ -31,7 +31,7 @@ out_dir="experiment_results"
 all_runs_times="query_times.csv"
 mean_run_times="averages.csv"
 client_container_name="pg_xdbc_client"
-server_container_name="pg_xdbc_server"
+server_container_name="xdbcserver"
 
 # =====================================================================================================
 
@@ -91,7 +91,8 @@ run_queries() {
             fi
 
             if [ "$fdw" = "xdbc" ]; then
-                docker exec -d -w /xdbc-server/build/ "${server_container_name}" ./xdbc-server -y postgres -b 1024 -p 32768 --deser-parallelism=4 --read-parallelism=8
+                #docker exec -d -w /xdbc-server/build/ "${server_container_name}" ./xdbc-server -y postgres -b 1024 -p 32768 --deser-parallelism=4 --read-parallelism=8
+                docker exec -d ${server_container_name} bash -c "./xdbc-server/build/xdbc-server --system postgres -b 1024 -p 32768 --deser-parallelism 4 --read-parallelism 8"
                 sleep 1
                 echo "Started xdbc server for this fdw."
             else
@@ -101,7 +102,7 @@ run_queries() {
             # Measure the execution time in psql
             start_time=$(date +%s.%N)  # Start time in seconds since epoch
             docker exec "${client_container_name}" \
-              psql db1 -v ON_ERROR_STOP=1 -c "SET statement_timeout = ${TIMEOUT_DURATION}; select * from ${table};" > /dev/null 2>&1
+              psql db1 -v ON_ERROR_STOP=1 -c "SET statement_timeout = ${TIMEOUT_DURATION}; COPY (select * from ${table}) TO '/tmp/out' WITH CSV HEADER;" > /dev/null 2>&1
             end_time=$(date +%s.%N)  # End time in seconds since epoch
 
             # Calculate execution time

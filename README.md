@@ -2,8 +2,6 @@
 
 This fdw interfaces with XDBC Client and XDBC Server, which establishes data transfer with PostgreSQL via XDBC.
 
-
-
 ## Install
 
 Hi Hari :)
@@ -22,3 +20,39 @@ Wenn der pg_xdbc_fdw_client container und der xdbc-server container und ein Post
 Und dann führst du in dem xdbc client container die setup_fdw.sql datei mit psql aus, damit die fdws und foreign tables erstellt werden.
 
 Nun kannst du die experimente starten lassen von außerhalb mit der experiments/run_experiments_for_datasets.sh datei. Der einzige Parameter der Datei ist, wie oft das select * für jeden table ausgeführt werden soll. Ich mach zur Zeit immer 10. Er schreibt dir dann die zeiten in eine datei und den durchschnitt in eine andere.
+
+## Instructions
+
+### initialize submodules
+
+```shell
+git submodule update --init --recursive
+```
+
+### configure data
+
+Check the tables/configurations in `experiments/setup_fdw*`
+
+### build image
+
+```shell
+cd docker && make
+```
+
+### start container
+
+```shell
+docker compose -f docker-xdbc-fdw.yml up -d
+```
+
+### create table schemata
+
+```shell
+docker exec pg_xdbc_client bash -c "cd pg_xdbc_fdw/experiments/ && ./setup_fdws.sh" 
+```
+
+### run experiments
+
+```shell
+./experiments/run_experiments_for_datasets.sh 1
+```

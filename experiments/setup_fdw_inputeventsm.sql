@@ -1,0 +1,62 @@
+DROP TABLE IF EXISTS jdbc.inputeventsm;
+DROP TABLE IF EXISTS xdbc.inputeventsm;
+CREATE FOREIGN TABLE IF NOT EXISTS jdbc.inputeventsm(
+    subject_id integer,
+    hadm_id integer,
+    stay_id integer,
+    caregiver_id integer,
+    starttime character varying(20),
+    endtime character varying(20),
+    storetime character varying(20),
+    itemid integer,
+    amount double precision,
+    amountuom character varying(20),
+    rate double precision,
+    rateuom character varying(14),
+    orderid integer,
+    linkorderid integer,
+    ordercategoryname character varying(25),
+    secondaryordercategoryname character varying(25),
+    ordercomponenttypedescription character varying(101),
+    ordercategorydescription character varying(15),
+    patientweight double precision,
+    totalamount double precision,
+    totalamountuom character varying(3),
+    isopenbag integer,
+    continueinnextdept integer,
+    statusdescription character varying(16),
+    originalamount double precision,
+    originalrate double precision
+    ) SERVER postgres_jdbc_server;
+
+CREATE FOREIGN TABLE IF NOT EXISTS xdbc.inputeventsm(
+    subject_id integer,
+    hadm_id integer,
+    stay_id integer,
+    caregiver_id integer,
+    starttime character varying(20),
+    endtime character varying(20),
+    storetime character varying(20),
+    itemid integer,
+    amount double precision,
+    amountuom character varying(20),
+    rate double precision,
+    rateuom character varying(14),
+    orderid integer,
+    linkorderid integer,
+    ordercategoryname character varying(25),
+    secondaryordercategoryname character varying(25),
+    ordercomponenttypedescription character varying(101),
+    ordercategorydescription character varying(15),
+    patientweight double precision,
+    totalamount double precision,
+    totalamountuom character varying(3),
+    isopenbag integer,
+    continueinnextdept integer,
+    statusdescription character varying(16),
+    originalamount double precision,
+    originalrate double precision
+
+    ) SERVER xdbcserver
+    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/inputeventsm.json', server_host 'xdbcserver',
+        table 'inputeventsm', buffer_size '1024', buffer_pool_size '40960');
