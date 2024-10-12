@@ -5,15 +5,24 @@
 #include "xdbc_interface_helper.h"
 #include "xdbc_interface.h"
 
-void xdbcMarkBufferAsRead(long transfer_id, int bufferID){
+void xdbcMarkBufferAsRead(long transfer_id, int bufferID) {
+
     auto it = connectionsMap.find(transfer_id);
     if (it != connectionsMap.end()) {
         auto xclient = it->second;
         xclient->markBufferAsRead(bufferID);
     }
+    //push write timestamp
+    //TODO: adjust for multiple writers
+    auto it2 = envMap.find(transfer_id);
+    if (it2 != envMap.end()) {
+        auto env = it2->second;
+        env->pts->push(
+                xdbc::ProfilingTimestamps{std::chrono::high_resolution_clock::now(), 0, "write", "push"});
+    }
 }
 
-XdbcBuffer xdbcGetBuffer(long transfer_id, int thr){
+XdbcBuffer xdbcGetBuffer(long transfer_id, int thr) {
     try {
 //        debug_print("[%s]\n", __func__);
         auto it = connectionsMap.find(transfer_id);
@@ -40,9 +49,9 @@ XdbcBuffer xdbcGetBuffer(long transfer_id, int thr){
                 }
             }
         } else {
-            debug_print("[%s] Couldn't find xclient_int for transfer_id: %ld\n", __func__, transfer_id );
+            debug_print("[%s] Couldn't find xclient_int for transfer_id: %ld\n", __func__, transfer_id);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         // Catch all standard exceptions derived from std::exception
         debug_print("[%s] Standard exception caught: %s\n", __func__, e.what());
     } catch (...) {
@@ -62,16 +71,16 @@ XdbcBuffer xdbcGetBuffer(long transfer_id, int thr){
     return buff2;
 }
 
-XdbcSchemaDesc xdbcGetSchemaDesc(long transfer_id){
+XdbcSchemaDesc xdbcGetSchemaDesc(long transfer_id) {
     auto it = envMap.find(transfer_id);
     if (it != envMap.end()) {
         auto env = it->second;
         XdbcSchemaDesc schemaDesc;
 
         schemaDesc.attrCount = env->schema.size();
-        auto* sizes = (unsigned long *)malloc(schemaDesc.attrCount * sizeof(unsigned long));
-        auto* typeCodes = (unsigned long *)malloc(schemaDesc.attrCount * sizeof(unsigned long));
-        auto* inRowOffsets = (unsigned long *)malloc(schemaDesc.attrCount * sizeof(unsigned long));
+        auto *sizes = (unsigned long *) malloc(schemaDesc.attrCount * sizeof(unsigned long));
+        auto *typeCodes = (unsigned long *) malloc(schemaDesc.attrCount * sizeof(unsigned long));
+        auto *inRowOffsets = (unsigned long *) malloc(schemaDesc.attrCount * sizeof(unsigned long));
         schemaDesc.rowOffset = 0;
 
         for (unsigned long i = 0; i < schemaDesc.attrCount; ++i) {
@@ -91,7 +100,7 @@ XdbcSchemaDesc xdbcGetSchemaDesc(long transfer_id){
     }
 }
 
-XdbcEnvironmentOptions xdbcCreateEnvOpt(){
+XdbcEnvironmentOptions xdbcCreateEnvOpt() {
     XdbcEnvironmentOptions envOpt;
     envOpt.intermediate_format = 1;
     envOpt.buffer_size = 64;
@@ -109,7 +118,7 @@ XdbcEnvironmentOptions xdbcCreateEnvOpt(){
     return envOpt;
 }
 
-void initializeEnv(const std::shared_ptr<xdbc::RuntimeEnv>& envi, XdbcEnvironmentOptions &envOpt){
+void initializeEnv(const std::shared_ptr <xdbc::RuntimeEnv> &envi, XdbcEnvironmentOptions &envOpt) {
     debug_print("[%s]\n", __func__);
 
     // assign transaction parameters
@@ -135,7 +144,7 @@ void initializeEnv(const std::shared_ptr<xdbc::RuntimeEnv>& envi, XdbcEnvironmen
     envi->monitor.store(false);
 }
 
-std::string formatSchema(const std::vector<xdbc::SchemaAttribute>& schema) {
+std::string formatSchema(const std::vector <xdbc::SchemaAttribute> &schema) {
     std::stringstream ss;
 
     // Header line
@@ -157,7 +166,7 @@ std::string formatSchema(const std::vector<xdbc::SchemaAttribute>& schema) {
 using namespace std;
 namespace po = boost::program_options;
 
-vector<xdbc::SchemaAttribute> createSchemaFromConfig(const string &configFile) {
+vector <xdbc::SchemaAttribute> createSchemaFromConfig(const string &configFile) {
     ifstream file(configFile);
     if (!file.is_open()) {
         debug_print("Failed to open schema: %s\n", configFile.c_str());
@@ -165,7 +174,7 @@ vector<xdbc::SchemaAttribute> createSchemaFromConfig(const string &configFile) {
     nlohmann::json schemaJson;
     file >> schemaJson;
 
-    vector<xdbc::SchemaAttribute> schema;
+    vector <xdbc::SchemaAttribute> schema;
     for (const auto &item: schemaJson) {
         schema.emplace_back(xdbc::SchemaAttribute{
                 item["name"],
@@ -190,11 +199,12 @@ std::string readJsonFileIntoString(const std::string &filePath) {
 }
 
 // Function to print EnvironmentOptions using debug_print
-void printEnvironmentOptions(const XdbcEnvironmentOptions& envOptions) {
+void printEnvironmentOptions(const XdbcEnvironmentOptions &envOptions) {
     debug_print("Environment Options:\n");
     debug_print("  Table: %s\n", (envOptions.table ? envOptions.table : "null"));
     debug_print("  Server Host: %s\n", (envOptions.server_host ? envOptions.server_host : "null"));
-    debug_print("  Schema File Path: %s\n", (envOptions.schema_file_with_path ? envOptions.schema_file_with_path : "null"));
+    debug_print("  Schema File Path: %s\n",
+                (envOptions.schema_file_with_path ? envOptions.schema_file_with_path : "null"));
     debug_print("  Intermediate Format: %d\n", envOptions.intermediate_format);
     debug_print("  Buffer Size: %d\n", envOptions.buffer_size);
     debug_print("  Bufferpool Size: %d\n", envOptions.bufferpool_size);
@@ -208,7 +218,7 @@ void printEnvironmentOptions(const XdbcEnvironmentOptions& envOptions) {
 }
 
 // Function to print RuntimeEnv using debug_print
-void printRuntimeEnv(const xdbc::RuntimeEnv& runtimeEnv) {
+void printRuntimeEnv(const xdbc::RuntimeEnv &runtimeEnv) {
     debug_print("Runtime Environment:\n");
     debug_print("  Transfer ID: %ld\n", runtimeEnv.transfer_id);
     debug_print("  Buffers in Bufferpool: %d\n", runtimeEnv.buffers_in_bufferpool);
@@ -224,18 +234,18 @@ void printRuntimeEnv(const xdbc::RuntimeEnv& runtimeEnv) {
     debug_print("  Monitor: %s\n", runtimeEnv.monitor.load() ? "true" : "false");
 }
 
-int xdbcInitialize(XdbcEnvironmentOptions envOpt){
-    debug_print("[%s] Initializing new client connection!\n", __func__ );
+int xdbcInitialize(XdbcEnvironmentOptions envOpt) {
+    debug_print("[%s] Initializing new client connection!\n", __func__);
     try {
         printEnvironmentOptions(envOpt);
 
         auto it = connectionsMap.find(envOpt.transfer_id);
-        if(it != connectionsMap.end()){
+        if (it != connectionsMap.end()) {
             debug_print("[%s] Connection with id %ld already exists! Aborting!\n", __func__, envOpt.transfer_id);
             return -1;
         }
-        debug_print("[%s] Checking EnvironmentsOptions...\n", __func__ );
-        if(!envOpt.table || !envOpt.server_host || !envOpt.schema_file_with_path){
+        debug_print("[%s] Checking EnvironmentsOptions...\n", __func__);
+        if (!envOpt.table || !envOpt.server_host || !envOpt.schema_file_with_path) {
             debug_print("[%s] No table, server-host or schema file given! Aborting!\n", __func__);
             return -2;
         }
@@ -246,7 +256,7 @@ int xdbcInitialize(XdbcEnvironmentOptions envOpt){
         env->startTime = std::chrono::steady_clock::now();
 
         //create schema
-        std::vector<xdbc::SchemaAttribute> schema;
+        std::vector <xdbc::SchemaAttribute> schema;
 
         string schemaFile = envOpt.schema_file_with_path;
 
@@ -254,9 +264,9 @@ int xdbcInitialize(XdbcEnvironmentOptions envOpt){
         env->schemaJSON = readJsonFileIntoString(schemaFile);
         env->schema = schema;
         env->tuple_size = std::accumulate(env->schema.begin(), env->schema.end(), 0,
-                                              [](int acc, const xdbc::SchemaAttribute &attr) {
-                                                  return acc + attr.size;
-                                              });
+                                          [](int acc, const xdbc::SchemaAttribute &attr) {
+                                              return acc + attr.size;
+                                          });
 
         env->tuples_per_buffer = (env->buffer_size * 1024 / env->tuple_size);
 
@@ -265,18 +275,21 @@ int xdbcInitialize(XdbcEnvironmentOptions envOpt){
         debug_print("Input table: %s with tuple size %d and schema:\n%s",
                     env->table.c_str(), env->tuple_size, formatSchema(env->schema).c_str());
 
-        debug_print("[%s] Creating XClient for transfer...\n", __func__ );
+        debug_print("[%s] Creating XClient for transfer...\n", __func__);
         auto client = std::make_shared<xdbc::XClient>(*env);
 
-        debug_print("[%s] Start receiving on the XClient...\n", __func__ );
+        debug_print("[%s] Start receiving on the XClient...\n", __func__);
         client->startReceiving(env->table);
 
-        debug_print("[%s] Storing connection for further usage...\n", __func__ );
+        debug_print("[%s] Storing connection for further usage...\n", __func__);
         connectionsMap[env->transfer_id] = client;
         envMap[env->transfer_id] = env;
 
+        //TODO: adjust for multiple writers
+        env->pts->push(
+                xdbc::ProfilingTimestamps{std::chrono::high_resolution_clock::now(), 0, "write", "start"});
         return 0;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         // Catch all standard exceptions derived from std::exception
         debug_print("[%s] Standard exception caught: %s\n", __func__, e.what());
     } catch (...) {
@@ -287,18 +300,27 @@ int xdbcInitialize(XdbcEnvironmentOptions envOpt){
     return -5;
 }
 
-void xdbcClose(long transfer_id){
+void xdbcClose(long transfer_id) {
+
+    //TODO: adjust for multiple writers
+    auto it3 = envMap.find(transfer_id);
+    if (it3 != envMap.end()) {
+        auto env = it3->second;
+        env->pts->push(
+                xdbc::ProfilingTimestamps{std::chrono::high_resolution_clock::now(), 0, "write", "end"});
+    }
+
     try {
-        debug_print("[%s] close\n", __func__ );
+        debug_print("[%s] close\n", __func__);
         auto it = connectionsMap.find(transfer_id);
         auto it2 = envMap.find(transfer_id);
         if (it != connectionsMap.end() && it2 != envMap.end()) {
             it->second->finalize();
-            debug_print("[%s] Reference count on xclient pointer in map: %ld\n", __func__ , it->second.use_count() );
+            debug_print("[%s] Reference count on xclient pointer in map: %ld\n", __func__, it->second.use_count());
             connectionsMap.erase(it);
             envMap.erase(it2);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         // Catch all standard exceptions derived from std::exception
         debug_print("[%s] Standard exception caught: %s\n", __func__, e.what());
     } catch (...) {
