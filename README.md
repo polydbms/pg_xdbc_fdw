@@ -5,11 +5,6 @@ This fdw interfaces with XDBC Client and XDBC Server, which establishes data tra
 
 ## Instructions
 
-### clone xdbc-server and xdbc-client repos to parent directory
-
-git@github.com:polydbms/xdbc-client.git
-git@github.com:polydbms/xdbc-server.git
-
 ### initialize submodules
 
 ```shell
