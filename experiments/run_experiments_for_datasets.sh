@@ -16,10 +16,12 @@ set -v
 # ==================================================  VARIABLES ======================================
 
 # datasets
-dataset_tables=("ss13husallm", "inputeventsm","iotm") #"lineitem_sf10"
+dataset_tables=("ss13husallm") 
+# dataset_tables=("ss13husallm" "inputeventsm" "iotm" lineitem_sf10)
 
 # schemas
-schema_prefixes=("xdbc" "native_fdw" "jdbc")
+# schema_prefixes=("xdbc" "native_fdw" "jdbc")
+schema_prefixes=("native_fdw" "jdbc")
 
 # timeout in seconds
 timeout_in_seconds=900
@@ -39,25 +41,11 @@ server_container_name="xdbcserver"
 
 # Make a new output directory for a new experiment run
 
-# Initialize the directory counter
-counter=1
-
-# Loop to find the next available directory name
-while [ -d "${out_dir}${counter}" ]; do
-    counter=$((counter + 1))
-done
-
-# Create the next incremented directory
-mkdir "${out_dir}${counter}"
-
-# Output the name of the created directory
-echo "Created directory: ${out_dir}${counter}"
-
-out_dir="${out_dir}${counter}/"
+mkdir -p "${out_dir}"
 
 # Result CSV files
-csv_file="${out_dir}${all_runs_times}"
-av_file="${out_dir}${mean_run_times}"
+csv_file="${out_dir}/${all_runs_times}"
+av_file="${out_dir}/${mean_run_times}"
 
 # Create or clear the CSV file
 echo "fdw,dataset,run,execution_time" > "$csv_file"
@@ -91,9 +79,11 @@ run_queries() {
             fi
 
             if [ "$fdw" = "xdbc" ]; then
+                docker exec ${server_container_name} pkill -f xdbc-server 2>/dev/null || true
+                sleep 1
                 #docker exec -d -w /xdbc-server/build/ "${server_container_name}" ./xdbc-server -y postgres -b 1024 -p 32768 --deser-parallelism=4 --read-parallelism=8
                 docker exec -d ${server_container_name} bash -c "./xdbc-server/build/xdbc-server --system postgres -b 1024 -p 32768 --deser-parallelism 4 --read-parallelism 8"
-                sleep 1
+                sleep 3
                 echo "Started xdbc server for this fdw."
             else
                 echo "Not starting xdbc server for this fdw."
