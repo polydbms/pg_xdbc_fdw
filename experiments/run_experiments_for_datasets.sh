@@ -86,7 +86,7 @@ run_queries() {
                 sleep 3
                 echo "Started xdbc server for this fdw."
             else
-                echo "Not starting xdbc server for this fdw."
+                echo "Running baseline. Not starting xdbc server for this fdw since it is not required."
             fi
 
             # Measure the execution time in psql
@@ -120,8 +120,13 @@ run_queries() {
     echo "$fdw,$dataset_name,$average" >> "$averages_file"
 }
 
+total_iterations=$(( ${#schema_prefixes[@]} * ${#dataset_tables[@]} ))
+current_iteration=0
+
 for schema in "${schema_prefixes[@]}"; do
   for tablename in "${dataset_tables[@]}"; do
+    current_iteration=$((current_iteration + 1))
+    echo "=== Iteration ${current_iteration}/${total_iterations}: ${schema}.${tablename} ==="
     run_queries "${schema}.${tablename}" "$csv_file" "${schema}" "$1" "$av_file" $timeout_in_seconds "${tablename}"
   done
 done
