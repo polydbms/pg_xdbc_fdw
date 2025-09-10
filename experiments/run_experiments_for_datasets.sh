@@ -16,8 +16,8 @@ set -v
 # ==================================================  VARIABLES ======================================
 
 # datasets
-dataset_tables=("ss13husallm") 
-# dataset_tables=("ss13husallm" "inputeventsm" "iotm" lineitem_sf10)
+# dataset_tables=("ss13husallm") 
+dataset_tables=("ss13husallm" "inputeventsm" "iotm" lineitem_sf10)
 
 # schemas
 # schema_prefixes=("xdbc" "native_fdw" "jdbc")
@@ -40,6 +40,11 @@ server_container_name="xdbcserver"
 
 
 # Make a new output directory for a new experiment run
+if [ -d "${out_dir}" ]; then
+    echo "Removing existing directory: ${out_dir}"
+    rm -rf "${out_dir}"
+fi
+sleep 5
 
 mkdir -p "${out_dir}"
 
