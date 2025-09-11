@@ -33,7 +33,6 @@ IMPORT FOREIGN SCHEMA public
     INTO native_fdw;
 
 
-
 --                                Create postgres jdbc fdw
 CREATE EXTENSION jdbc_fdw;
 
@@ -49,70 +48,6 @@ CREATE USER MAPPING FOR CURRENT_USER SERVER postgres_jdbc_server
     OPTIONS(username 'postgres',password '123456');
 
 CREATE SCHEMA jdbc;
-
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.pg1_sf0001_lineitem(
-    l_orderkey      bigint not null,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER not null,
-    l_quantity      numeric(12,2),
-    l_extendedprice numeric(12,2),
-    l_discount      numeric(12,2),
-    l_tax           numeric(12,2),
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      date,
-    l_commitdate    date,
-    l_receiptdate   date,
-    l_shipinstruct  CHAR(25),
-    l_shipmode      CHAR(10),
-    l_comment       VARCHAR(44)
-    ) SERVER postgres_jdbc_server;
-
-
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.pg1_sf1_lineitem(
-    l_orderkey      bigint not null,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER not null,
-    l_quantity      numeric(12,2),
-    l_extendedprice numeric(12,2),
-    l_discount      numeric(12,2),
-    l_tax           numeric(12,2),
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      date,
-    l_commitdate    date,
-    l_receiptdate   date,
-    l_shipinstruct  CHAR(25),
-    l_shipmode      CHAR(10),
-    l_comment       VARCHAR(44)
-    ) SERVER postgres_jdbc_server;
-
-
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.pg1_sf10_lineitem(
-    l_orderkey      bigint not null,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER not null,
-    l_quantity      numeric(12,2),
-    l_extendedprice numeric(12,2),
-    l_discount      numeric(12,2),
-    l_tax           numeric(12,2),
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      date,
-    l_commitdate    date,
-    l_receiptdate   date,
-    l_shipinstruct  CHAR(25),
-    l_shipmode      CHAR(10),
-    l_comment       VARCHAR(44)
-    ) SERVER postgres_jdbc_server;
-
-
-
-
-
 --                                        Create xdbc_fdw extension
 CREATE EXTENSION IF NOT EXISTS pg_xdbc_fdw;
 
@@ -122,73 +57,6 @@ CREATE SERVER IF NOT EXISTS "xdbcserver"
 
 -- create schema
 CREATE SCHEMA xdbc;
-
--- setup schemas for xdbc
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.pg1_sf0001_lineitem(
-    l_orderkey      INTEGER,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER,
-    l_quantity      double precision,
-    l_extendedprice double precision,
-    l_discount      double precision,
-    l_tax           double precision,
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      VARCHAR(45),
-    l_commitdate    VARCHAR(45),
-    l_receiptdate   VARCHAR(45),
-    l_shipinstruct  CHAR(26),
-    l_shipmode      CHAR(11),
-    l_comment       VARCHAR(45)
-    ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/lineitem_sf0001.json', server_host 'pg_xdbc_server',
-        table 'pg1_sf0001_lineitem', buffer_size '1024', buffer_pool_size '32768');
-
-
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.pg1_sf1_lineitem(
-    l_orderkey      INTEGER,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER,
-    l_quantity      double precision,
-    l_extendedprice double precision,
-    l_discount      double precision,
-    l_tax           double precision,
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      VARCHAR(45),
-    l_commitdate    VARCHAR(45),
-    l_receiptdate   VARCHAR(45),
-    l_shipinstruct  CHAR(26),
-    l_shipmode      CHAR(11),
-    l_comment       VARCHAR(45)
-    ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/lineitem_sf0001.json', server_host 'pg_xdbc_server',
-        table 'pg1_sf1_lineitem', buffer_size '1024', buffer_pool_size '32768');
-
-
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.pg1_sf10_lineitem(
-    l_orderkey      INTEGER,
-    l_partkey       INTEGER,
-    l_suppkey       INTEGER,
-    l_linenumber    INTEGER,
-    l_quantity      double precision,
-    l_extendedprice double precision,
-    l_discount      double precision,
-    l_tax           double precision,
-    l_returnflag    CHAR(1),
-    l_linestatus    CHAR(1),
-    l_shipdate      VARCHAR(45),
-    l_commitdate    VARCHAR(45),
-    l_receiptdate   VARCHAR(45),
-    l_shipinstruct  CHAR(26),
-    l_shipmode      CHAR(11),
-    l_comment       VARCHAR(45)
-    ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/lineitem_sf0001.json', server_host 'pg_xdbc_server',
-        table 'pg1_sf10_lineitem', buffer_size '1024', buffer_pool_size '32768');
-
 
 -- Use all three schemas for querying
 SET search_path TO jdbc, xdbc, native_fdw;

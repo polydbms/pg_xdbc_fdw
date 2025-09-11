@@ -97,6 +97,8 @@ RUN mkdir -p /pg_xdbc_fdw/ressources/schemas
 COPY ressources/schemas /pg_xdbc_fdw/ressources/schemas
 COPY experiments/ /pg_xdbc_fdw/experiments
 
+
+
 # Run installation command for the fdw
 # first pre generate LLVM IR, as there is no way to give it the needed -std=c++17 flag!!
 RUN cd /pg_xdbc_fdw/ && /usr/bin/clang-15 -xc++ -Wno-ignored-attributes -fno-strict-aliasing -fwrapv -Xclang -no-opaque-pointers -O2  -I./include -I./submodules/xdbc-client/xdbc -I./submodules/xdbc-server -I. -I./ -I/usr/include/postgresql/13/server -I/usr/include/postgresql/internal  -Wdate-time -D_FORTIFY_SOURCE=2 -D_GNU_SOURCE -I/usr/include/libxml2 -std=c++17 -flto=thin -emit-llvm -c -o src/xdbc_interface.bc src/xdbc_interface.cpp
@@ -111,6 +113,13 @@ RUN cd /pg_xdbc_fdw/ressources/driver && curl -O https://jdbc.postgresql.org/dow
 # Copy test files and compile test
 COPY test /pg_xdbc_fdw/test
 RUN cd /pg_xdbc_fdw/test/xdbc_interface_test/ && make
+
+COPY ./experiments/setup_fdw_lineitem_sf10.sql /pg_xdbc_fdw/experiments/
+COPY ./experiments/setup_fdw_iotm.sql /pg_xdbc_fdw/experiments/
+COPY ./experiments/setup_fdw_inputeventsm.sql /pg_xdbc_fdw/experiments/
+COPY ./experiments/setup_fdw_ss13husallm.sql /pg_xdbc_fdw/experiments/
+COPY ./experiments/setup_fdws.sh /pg_xdbc_fdw/experiments/
+RUN chmod +x /pg_xdbc_fdw/experiments/setup_fdws.sh
 
 # Set Postgres configuration
 USER postgres

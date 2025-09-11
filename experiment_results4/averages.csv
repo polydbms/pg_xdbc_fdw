@@ -1,0 +1,4 @@
+fdw,dataset,execution_time
+xdbc,lineitem_sf10,282.036000000
+native_fdw,lineitem_sf10,383.328000000
+jdbc,lineitem_sf10,6250.850000000

@@ -1,6 +1,10 @@
 [submodule "submodules/xdbc-server"]
 	path = submodules/xdbc-server
-	url = git@github.com:polydbms/xdbc-server.git
+	url  = git@github.com:polydbms/xdbc-server.git
+	# url  = ../xdbc-server
+	branch = test/reproduce
 [submodule "submodules/xdbc-client"]
 	path = submodules/xdbc-client
+	# url = ../xdbc-client
 	url = git@github.com:polydbms/xdbc-client.git
+	branch = test/reproduce
