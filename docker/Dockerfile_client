@@ -1,7 +1,7 @@
 # Docker Image for compiling and testing the XDBC connector for Postgresql
 FROM ubuntu:22.04
 
-ENV DEBIAN_FRONTEND noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # install prerequisites
 RUN apt-get update \

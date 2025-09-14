@@ -1,6 +1,9 @@
-DROP TABLE IF EXISTS jdbc.lineitem_sf10;
-DROP TABLE IF EXISTS xdbc.lineitem_sf10;
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.lineitem_sf10(
+DROP
+FOREIGN TABLE IF EXISTS jdbc.lineitem_sf10;
+DROP
+FOREIGN TABLE IF EXISTS xdbc.lineitem_sf10;
+CREATE
+FOREIGN TABLE IF NOT EXISTS jdbc.lineitem_sf10(
     l_orderkey      bigint not null,
     l_partkey       INTEGER,
     l_suppkey       INTEGER,
@@ -19,7 +22,8 @@ CREATE FOREIGN TABLE IF NOT EXISTS jdbc.lineitem_sf10(
     l_comment       VARCHAR(44)
     ) SERVER postgres_jdbc_server;
 
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.lineitem_sf10(
+CREATE
+FOREIGN TABLE IF NOT EXISTS xdbc.lineitem_sf10(
     l_orderkey      INTEGER,
     l_partkey       INTEGER,
     l_suppkey       INTEGER,
@@ -37,5 +41,5 @@ CREATE FOREIGN TABLE IF NOT EXISTS xdbc.lineitem_sf10(
     l_shipmode      CHAR(11),
     l_comment       VARCHAR(45)
     ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/lineitem_sf10.json', server_host 'xdbcserver',
-        table 'lineitem_sf10', buffer_size '1024', buffer_pool_size '32768');
+    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/lineitem_sf10.json', server_host 'xdbcserver', table 'lineitem_sf10', transfer_id '123123',
+        buffer_size '1024', buffer_pool_size '100000', net_parallelism '1', decomp_parallelism '1', read_parallelism '1');

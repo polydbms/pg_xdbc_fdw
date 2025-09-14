@@ -48,7 +48,7 @@ docker compose -f docker-xdbc-fdw.yml up -d
 ### create table schemata
 
 ```shell
-docker exec pg_xdbc_client bash -c "cd pg_xdbc_fdw/experiments/ && ./setup_fdws.sh" 
+docker exec xdbcpostgres bash -c "cd pg_xdbc_fdw/experiments/ && ./setup_fdws.sh" 
 ```
 
 ### run experiments

@@ -1,5 +1,5 @@
-DROP TABLE IF EXISTS jdbc.inputeventsm;
-DROP TABLE IF EXISTS xdbc.inputeventsm;
+DROP FOREIGN TABLE IF EXISTS jdbc.inputeventsm;
+DROP FOREIGN TABLE IF EXISTS xdbc.inputeventsm;
 CREATE FOREIGN TABLE IF NOT EXISTS jdbc.inputeventsm(
     subject_id integer,
     hadm_id integer,
@@ -58,5 +58,5 @@ CREATE FOREIGN TABLE IF NOT EXISTS xdbc.inputeventsm(
     originalrate double precision
 
     ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/inputeventsm.json', server_host 'xdbcserver',
-        table 'inputeventsm', buffer_size '1024', buffer_pool_size '40960');
+    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/inputeventsm.json', server_host 'xdbcserver', table 'inputeventsm', transfer_id '123123',
+        buffer_size '1024', buffer_pool_size '100000', net_parallelism '1', decomp_parallelism '1', read_parallelism '1');
