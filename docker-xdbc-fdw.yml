@@ -1,7 +1,7 @@
 services:
   pg_xdbc_client_fdw:
     image: pg_xdbc_fdw_client:latest
-    container_name: pg_xdbc_client
+    container_name: xdbcpostgres
     restart: always
     volumes:
       - /dev/shm:/dev/shm

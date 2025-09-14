@@ -150,7 +150,7 @@ pg_xdbc_slot pg_xdbc_fdwReadTupleBuildSlot(pg_xdbc_scanstate * state);
 static void pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
                                   char **schema_file_path, int* iformat, int* buffer_size, int* buffer_pool_size,
                                   int* sleep_time, int* net_parallelism, int* read_parallelism, int* decomp_parallelism,
-                                  int* tuple_size);
+                                  int* tuple_size, long* transfer_id);
 
 /**
  * Retrieves a long from postgresql options element.

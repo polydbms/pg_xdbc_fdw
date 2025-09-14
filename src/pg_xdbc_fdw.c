@@ -141,7 +141,7 @@ void pg_xdbc_fdwGetForeignRelSize(PlannerInfo *root, RelOptInfo *baserel, Oid fo
                           &envOpt->schema_file_with_path, &envOpt->mode,
                           &envOpt->buffer_size, &envOpt->bufferpool_size,
                           &envOpt->sleep_time, &envOpt->net_parallelism, &envOpt->read_parallelism,
-                          &envOpt->decomp_parallelism, &envOpt->tuple_size);
+                          &envOpt->decomp_parallelism, &envOpt->tuple_size, &envOpt->transfer_id);
 
     baserel->rows = (double) 1000;
 
@@ -203,7 +203,7 @@ void pg_xdbc_fdwBeginForeignScan(ForeignScanState *node, int eflags){
     // Retrieve EnvironmentOptions
     List* fdw_private = ((ForeignScan *)node->ss.ps.plan)->fdw_private;
     XdbcEnvironmentOptions* envOpt = linitial(fdw_private);
-    envOpt->transfer_id = ++pg_xdbc_transfer_id;
+    //envOpt->transfer_id = ++pg_xdbc_transfer_id;
 
     elog_debug("[%s] Initialize scan with options:\n  table: %s\n  server-host: %s\n"
                "  schema_file_path: %s\n  transfer_id: %lu\n", __func__ , envOpt->table, envOpt->server_host,
@@ -368,7 +368,7 @@ static void
 pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
                       char **schema_file_path, int* iformat, int* buffer_size, int* buffer_pool_size,
                       int* sleep_time, int* net_parallelism, int* read_parallelism, int* decomp_parallelism,
-                      int* tuple_size)
+                      int* tuple_size, long* transfer_id)
 {
     ForeignTable	*f_table;
     ForeignServer	*f_server;
@@ -496,6 +496,19 @@ pg_xdbc_fdwGetOptions(Oid foreigntableid, char **table, char **server_host,
             {
                 *tuple_size = customTupleSize;
                 elog_debug("[%s] Got tuple_size with value: %d", __func__, *tuple_size);
+            }
+        }
+        if (strcmp(def->defname, "transfer_id") == 0)
+        {
+            char *value_str = defGetString(def);
+            //TODO: change scanint to pg_strtoint64 for postgres>13
+            //int customTransferId = scanint8(value_str);
+            long customTransferId;
+            scanint8(value_str, false, &customTransferId);
+            if (customTransferId > 0)
+            {
+                *transfer_id = customTransferId;
+                elog_debug("[%s] Got transfer_id with value: %d", __func__, *transfer_id);
             }
         }
     }

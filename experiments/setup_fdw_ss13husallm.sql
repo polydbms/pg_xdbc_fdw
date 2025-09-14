@@ -1,6 +1,9 @@
-DROP TABLE IF EXISTS jdbc.ss13husallm;
-DROP TABLE IF EXISTS xdbc.ss13husallm;
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.ss13husallm(
+DROP
+FOREIGN TABLE IF EXISTS jdbc.ss13husallm;
+DROP
+FOREIGN TABLE IF EXISTS xdbc.ss13husallm;
+CREATE
+FOREIGN TABLE IF NOT EXISTS jdbc.ss13husallm(
     SERIALNO INTEGER,
                              DIVISION INTEGER,
                              PUMA INTEGER,
@@ -233,7 +236,8 @@ CREATE FOREIGN TABLE IF NOT EXISTS jdbc.ss13husallm(
                              wgtp80 INTEGER
     ) SERVER postgres_jdbc_server;
 
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.ss13husallm(
+CREATE
+FOREIGN TABLE IF NOT EXISTS xdbc.ss13husallm(
     SERIALNO INTEGER,
                              DIVISION INTEGER,
                              PUMA INTEGER,
@@ -465,5 +469,5 @@ CREATE FOREIGN TABLE IF NOT EXISTS xdbc.ss13husallm(
                              wgtp79 INTEGER,
                              wgtp80 INTEGER
     ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/ss13husallm.json', server_host 'xdbcserver',
-        table 'ss13husallm', buffer_size '1024', buffer_pool_size '40960');
+    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/ss13husallm.json', server_host 'xdbcserver', table 'ss13husallm', transfer_id '123123',
+        buffer_size '1024', buffer_pool_size '100000', net_parallelism '1', decomp_parallelism '1', read_parallelism '1');

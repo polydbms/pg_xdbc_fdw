@@ -1,6 +1,9 @@
-DROP TABLE IF EXISTS jdbc.iotm;
-DROP TABLE IF EXISTS xdbc.iotm;
-CREATE FOREIGN TABLE IF NOT EXISTS jdbc.iotm(
+DROP
+FOREIGN TABLE IF EXISTS jdbc.iotm;
+DROP
+FOREIGN TABLE IF EXISTS xdbc.iotm;
+CREATE
+FOREIGN TABLE IF NOT EXISTS jdbc.iotm(
     id integer,
     flowid character varying(45),
     srcip character varying(16),
@@ -88,7 +91,8 @@ CREATE FOREIGN TABLE IF NOT EXISTS jdbc.iotm(
     label character varying(9)
     ) SERVER postgres_jdbc_server;
 
-CREATE FOREIGN TABLE IF NOT EXISTS xdbc.iotm(
+CREATE
+FOREIGN TABLE IF NOT EXISTS xdbc.iotm(
     id integer,
     flowid character varying(45),
     srcip character varying(16),
@@ -175,5 +179,5 @@ CREATE FOREIGN TABLE IF NOT EXISTS xdbc.iotm(
     idlemin double precision,
     label character varying(9)
     ) SERVER xdbcserver
-    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/iotm.json', server_host 'xdbcserver',
-        table 'iotm', buffer_size '1024', buffer_pool_size '131072');
+    OPTIONS (schema_file_path '/pg_xdbc_fdw/ressources/schemas/iotm.json', server_host 'xdbcserver', table 'iotm', transfer_id '123123',
+        buffer_size '1024', buffer_pool_size '100000', net_parallelism '1', decomp_parallelism '1', read_parallelism '1');
