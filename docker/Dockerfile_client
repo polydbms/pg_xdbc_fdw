@@ -66,6 +66,21 @@ RUN git clone https://github.com/LLNL/fpzip.git && cd fpzip && \
 RUN mkdir /pg_xdbc_fdw
 COPY submodules /pg_xdbc_fdw/submodules
 
+
+ # Add Apache Arrow APT repo for Ubuntu 22.04 (jammy) and install Arrow/Parquet dev pkgs
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates lsb-release wget gnupg && \
+    wget https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-$(lsb_release -cs).deb && \
+    apt-get install -y ./apache-arrow-apt-source-latest-$(lsb_release -cs).deb && \
+    rm -f apache-arrow-apt-source-latest-$(lsb_release -cs).deb && \
+    apt-get update && apt-get install -y --no-install-recommends \
+      libarrow-dev \
+      libparquet-dev \
+      libthrift-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+
+
 # Run installation command for xdbc client
 WORKDIR /pg_xdbc_fdw/submodules/xdbc-client/
 RUN mkdir build && cd build && cmake .. && make -j8 && make install

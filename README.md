@@ -8,7 +8,7 @@ This fdw interfaces with XDBC Client and XDBC Server, which establishes data tra
 ### initialize submodules
 
 ```shell
-git submodule update --init --recursive
+git submodule update --init --recursive --remote
 ```
 
 ### configure data
@@ -36,5 +36,5 @@ docker exec xdbcpostgres bash -c "cd pg_xdbc_fdw/experiments/ && ./setup_fdws.sh
 ### run experiments
 
 ```shell
-./experiments/run_experiments_for_datasets.sh 1
+./experiments/run_experiments_for_datasets.sh
 ```
